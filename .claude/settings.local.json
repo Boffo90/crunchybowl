@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx tsc *)",
+      "Bash(npm run *)",
+      "Bash(mkdir -p .claude)",
+      "Bash(node _tmp-reset-password.mjs 'xu90TOTL!!')",
+      "Bash(find \"C:/Users/smyo9/Downloads\" -newermt \"2026-07-07\" \\\\\\( -iname \"*.png\" -o -iname \"*.jpg\" -o -iname \"*.jpeg\" -o -iname \"*.webp\" \\\\\\) 2>/dev/null | head -20)",
+      "Bash(mkdir -p \"C:/Users/smyo9/crunchybowl/public/brand\" && cp \"C:/Users/smyo9/Downloads/logo_crunchybowl.webp\" \"C:/Users/smyo9/crunchybowl/public/brand/logo.webp\" && ls -la \"C:/Users/smyo9/crunchybowl/public/brand/\")",
+      "Bash(node _tmp-list-productos.mjs)"
+    ]
+  }
+}

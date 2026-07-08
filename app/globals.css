@@ -1,0 +1,39 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: #FFF5F0;
+  --foreground: #4A2C3A;
+}
+
+html, body {
+  background: var(--background);
+  color: var(--foreground);
+  scroll-behavior: smooth;
+}
+
+/* Scrollbar kawaii */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: #FFF5F0; }
+::-webkit-scrollbar-thumb { background: #FFB6C7; border-radius: 10px; }
+::-webkit-scrollbar-thumb:hover { background: #FF8FB1; }
+
+@layer components {
+  .btn-kawaii {
+	@apply inline-flex items-center justify-center gap-2 rounded-full px-6 py-3 font-semibold transition-all shadow-kawaii hover:shadow-kawaii-lg hover:-translate-y-0.5 active:translate-y-0;
+  }
+  .btn-primary {
+	@apply btn-kawaii bg-crunchy-accent text-white hover:bg-crunchy-pink-deep;
+  }
+  .btn-secondary {
+	@apply btn-kawaii bg-white text-crunchy-dark border-2 border-crunchy-pink;
+  }
+  .card-kawaii {
+	@apply bg-white rounded-kawaii shadow-kawaii p-6;
+  }
+  .input-kawaii {
+	@apply w-full rounded-2xl border-2 border-crunchy-pink-soft bg-white px-4 py-3 outline-none focus:border-crunchy-accent transition-colors;
+  }
+}
+
