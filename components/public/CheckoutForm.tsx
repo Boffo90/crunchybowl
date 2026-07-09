@@ -3,23 +3,29 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
-import { AlertCircle, Bike, Home, Wallet, CreditCard, Landmark, Sparkles } from "lucide-react";
+import { AlertCircle, Bike, Home, Wallet, CreditCard, Landmark, Sparkles, Clock } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { useCart } from "@/lib/store/cart";
 import { formatCLP } from "@/lib/utils";
-import { estaAbiertoAhora, proximaApertura } from "@/lib/horarios";
+import { estaAbiertoAhora, proximaVentana, type HorariosConfig } from "@/lib/horarios";
 import { ZONAS_DELIVERY, getZona } from "@/lib/zonas";
 import { ROUTES } from "@/lib/routes";
 import { DATOS_TRANSFERENCIA } from "@/lib/pago";
 
-type Props = { userId: string | null; nombreInicial: string; telefonoInicial: string };
+type Props = {
+  userId: string | null;
+  nombreInicial: string;
+  telefonoInicial: string;
+  horarios: HorariosConfig;
+};
 
-export function CheckoutForm({ userId, nombreInicial, telefonoInicial }: Props) {
+export function CheckoutForm({ userId, nombreInicial, telefonoInicial, horarios }: Props) {
   const [mounted, setMounted] = useState(false);
   const [loading, setLoading] = useState(false);
   const [abierto, setAbierto] = useState(true);
-  const [proxima, setProxima] = useState("");
+  const [ventana, setVentana] = useState<{ dia: string; apertura: string; cierre: string } | null>(null);
+  const [horaEntrega, setHoraEntrega] = useState("");
 
   const items = useCart((s) => s.items);
   const subtotal = useCart((s) => s.getSubtotal());
@@ -38,9 +44,9 @@ export function CheckoutForm({ userId, nombreInicial, telefonoInicial }: Props) 
 
   useEffect(() => {
     setMounted(true);
-    setAbierto(estaAbiertoAhora());
-    setProxima(proximaApertura());
-  }, []);
+    setAbierto(estaAbiertoAhora(horarios));
+    setVentana(proximaVentana(horarios));
+  }, [horarios]);
 
   const costoDelivery = useMemo(() => {
     if (form.tipo_entrega === "retiro") return 0;
@@ -55,8 +61,8 @@ export function CheckoutForm({ userId, nombreInicial, telefonoInicial }: Props) 
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!abierto) {
-      toast.error("Estamos cerrados. Abrimos " + proxima);
+    if (!abierto && !horaEntrega) {
+      toast.error("Indica a que hora quieres tu pedido para dejarlo reservado");
       return;
     }
     if (items.length === 0) {
@@ -87,6 +93,7 @@ export function CheckoutForm({ userId, nombreInicial, telefonoInicial }: Props) 
           total,
           metodo_pago: form.metodo_pago,
           notas_generales: form.notas_generales || null,
+          hora_entrega: !abierto ? horaEntrega : null,
           items: items.map((i) => ({
             producto_id: i.producto_id,
             nombre_producto: i.nombre,
@@ -151,11 +158,28 @@ export function CheckoutForm({ userId, nombreInicial, telefonoInicial }: Props) 
       )}
 
       {!abierto && (
-        <div className="mb-6 flex items-start gap-3 rounded-kawaii border-2 border-orange-300 bg-orange-50 p-4">
-          <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-orange-600" />
-          <div>
-            <p className="font-semibold text-orange-800">Estamos cerrados en este momento</p>
-            <p className="text-sm text-orange-700">Abrimos {proxima}. No puedes confirmar el pedido ahora.</p>
+        <div className="mb-6 rounded-kawaii border-2 border-orange-300 bg-orange-50 p-4">
+          <div className="flex items-start gap-3">
+            <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-orange-600" />
+            <div className="flex-1">
+              <p className="font-semibold text-orange-800">Estamos cerrados, pero puedes dejar tu pedido reservado</p>
+              <p className="mb-3 text-sm text-orange-700">
+                Lo prepararemos apenas abramos{ventana ? ` (${ventana.dia} de ${ventana.apertura} a ${ventana.cierre})` : ""}. ¿A qué hora lo quieres?
+              </p>
+              <div className="flex items-center gap-2">
+                <Clock className="h-4 w-4 shrink-0 text-orange-600" />
+                <input
+                  type="time"
+                  value={horaEntrega}
+                  onChange={(e) => setHoraEntrega(e.target.value)}
+                  min={ventana?.apertura}
+                  max={ventana?.cierre}
+                  required
+                  className="rounded-2xl border-2 border-orange-200 bg-white px-3 py-2 text-sm outline-none focus:border-orange-400"
+                />
+                <span className="text-xs text-orange-700">hora de entrega/retiro deseada</span>
+              </div>
+            </div>
           </div>
         </div>
       )}
@@ -350,8 +374,8 @@ export function CheckoutForm({ userId, nombreInicial, telefonoInicial }: Props) 
               <span className="text-2xl font-bold text-crunchy-accent">{formatCLP(total)}</span>
             </div>
 
-            <Button type="submit" size="lg" loading={loading} disabled={!abierto} className="w-full">
-              Confirmar pedido
+            <Button type="submit" size="lg" loading={loading} className="w-full">
+              {abierto ? "Confirmar pedido" : "Reservar pedido"}
             </Button>
           </div>
         </div>

@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { createClient } from "@/lib/supabase/server";
+// Service role: el middleware ya restringe /admin/*; RLS ocultaria pedidos ajenos.
+import { createAdminClient } from "@/lib/supabase/admin";
 import { formatCLP } from "@/lib/utils";
 import { ROUTES } from "@/lib/routes";
 
@@ -16,7 +17,7 @@ const estadoBadge: Record<string, string> = {
 };
 
 export default async function AdminPedidosPage() {
-  const supabase = createClient();
+  const supabase = createAdminClient();
   const { data: pedidos } = await supabase
     .from("pedidos")
     .select("id, numero, nombre, telefono, total, tipo_entrega, estado, metodo_pago, created_at")

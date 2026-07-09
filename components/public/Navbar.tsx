@@ -13,6 +13,7 @@ const links = [
   { href: ROUTES.CARTA, label: "Carta" },
   { href: ROUTES.COMO_FUNCIONA, label: "Cómo funciona" },
   { href: ROUTES.FIDELIDAD, label: "Fidelidad" },
+  { href: ROUTES.NOSOTROS, label: "Nosotros" },
   { href: ROUTES.CONTACTO, label: "Contacto" },
 ];
 

@@ -2,13 +2,15 @@ import Link from "next/link";
 import { Award, Gift, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { createClient } from "@/lib/supabase/server";
+// RLS bloquea configuracion para usuarios normales: leerla con service role (solo servidor).
+import { createAdminClient } from "@/lib/supabase/admin";
 import { ROUTES } from "@/lib/routes";
 
 export default async function FidelidadPage() {
   const supabase = createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
-  const { data: config } = await supabase
+  const { data: config } = await createAdminClient()
     .from("configuracion")
     .select("value")
     .eq("key", "fidelidad")

@@ -1,7 +1,9 @@
 import { Bike, Clock, Home } from "lucide-react";
 import { formatearHorarioSemanal } from "@/lib/horarios";
+import { getHorarios } from "@/lib/horarios-db";
 
-export function InfoStrip() {
+export async function InfoStrip() {
+  const horarios = await getHorarios();
   return (
     <section className="mx-auto max-w-7xl px-4 py-12">
       <div className="grid gap-6 md:grid-cols-3">
@@ -20,7 +22,7 @@ export function InfoStrip() {
           </div>
           <div>
             <h4 className="mb-1 font-semibold text-crunchy-dark">Horarios</h4>
-            <p className="text-sm text-crunchy-muted">{formatearHorarioSemanal()}</p>
+            <p className="text-sm text-crunchy-muted">{formatearHorarioSemanal(horarios)}</p>
           </div>
         </div>
         <div className="card-kawaii flex items-start gap-4">

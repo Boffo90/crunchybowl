@@ -3,8 +3,10 @@ import Image from "next/image";
 import { Instagram, MapPin, Clock, Phone } from "lucide-react";
 import { ROUTES } from "@/lib/routes";
 import { formatearHorarioSemanal } from "@/lib/horarios";
+import { getHorarios } from "@/lib/horarios-db";
 
-export function Footer() {
+export async function Footer() {
+  const horarios = await getHorarios();
   return (
     <footer className="mt-20 border-t-2 border-crunchy-pink-soft bg-white">
       <div className="mx-auto grid max-w-7xl gap-8 px-4 py-12 md:grid-cols-4">
@@ -21,6 +23,7 @@ export function Footer() {
             <li><Link href={ROUTES.CARTA} className="text-crunchy-muted hover:text-crunchy-accent">Carta</Link></li>
             <li><Link href={ROUTES.COMO_FUNCIONA} className="text-crunchy-muted hover:text-crunchy-accent">Cómo funciona</Link></li>
             <li><Link href={ROUTES.FIDELIDAD} className="text-crunchy-muted hover:text-crunchy-accent">Fidelidad</Link></li>
+            <li><Link href={ROUTES.NOSOTROS} className="text-crunchy-muted hover:text-crunchy-accent">Nosotros</Link></li>
             <li><Link href={ROUTES.CONTACTO} className="text-crunchy-muted hover:text-crunchy-accent">Contacto</Link></li>
           </ul>
         </div>
@@ -28,7 +31,7 @@ export function Footer() {
           <h4 className="mb-3 font-semibold text-crunchy-dark">Contáctanos</h4>
           <ul className="space-y-2 text-sm text-crunchy-muted">
             <li className="flex items-start gap-2"><MapPin className="mt-0.5 h-4 w-4 shrink-0" /> Calle Cuatro 905, Pucón</li>
-            <li className="flex items-start gap-2"><Clock className="mt-0.5 h-4 w-4 shrink-0" /> {formatearHorarioSemanal()}</li>
+            <li className="flex items-start gap-2"><Clock className="mt-0.5 h-4 w-4 shrink-0" /> {formatearHorarioSemanal(horarios)}</li>
             <li className="flex items-start gap-2"><Phone className="mt-0.5 h-4 w-4 shrink-0" /> WhatsApp</li>
           </ul>
         </div>

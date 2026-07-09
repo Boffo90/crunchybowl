@@ -1,6 +1,6 @@
 import Link from "next/link";
 import Image from "next/image";
-import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { formatCLP, PRODUCTO_LABELS } from "@/lib/utils";
 import { ROUTES } from "@/lib/routes";
 import type { Producto } from "@/types";
@@ -8,7 +8,7 @@ import type { Producto } from "@/types";
 export const dynamic = "force-dynamic";
 
 export default async function AdminProductosPage() {
-  const supabase = createClient();
+  const supabase = createAdminClient();
   const { data: productos } = await supabase
     .from("productos")
     .select("*")

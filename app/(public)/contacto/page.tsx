@@ -1,5 +1,6 @@
 import { Instagram, MapPin, Clock, MessageCircle } from "lucide-react";
 import { formatearHorarioSemanal } from "@/lib/horarios";
+import { getHorarios } from "@/lib/horarios-db";
 
 function whatsappHref() {
   const numero = (process.env.WHATSAPP_ADMIN ?? "").replace(/[^\d]/g, "");
@@ -7,8 +8,9 @@ function whatsappHref() {
   return `https://wa.me/${numero}?text=${encodeURIComponent("Hola! Quiero hacer una consulta sobre CrunchyBowl 🍜")}`;
 }
 
-export default function ContactoPage() {
+export default async function ContactoPage() {
   const wa = whatsappHref();
+  const horarios = await getHorarios();
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-12">
@@ -34,7 +36,7 @@ export default function ContactoPage() {
           </div>
           <div>
             <h3 className="mb-1 font-semibold text-crunchy-dark">Horario de atención</h3>
-            <p className="text-sm text-crunchy-muted">{formatearHorarioSemanal()}</p>
+            <p className="text-sm text-crunchy-muted">{formatearHorarioSemanal(horarios)}</p>
           </div>
         </div>
 

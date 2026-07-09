@@ -1,8 +1,10 @@
 import { createClient } from "@/lib/supabase/server";
 import { CheckoutForm } from "@/components/public/CheckoutForm";
+import { getHorariosFresh } from "@/lib/horarios-db";
 
 export default async function CheckoutPage() {
   const supabase = createClient();
+  const horarios = await getHorariosFresh();
   const { data: { user } } = await supabase.auth.getUser();
 
   let nombreInicial = "";
@@ -23,6 +25,7 @@ export default async function CheckoutPage() {
       userId={user?.id ?? null}
       nombreInicial={nombreInicial}
       telefonoInicial={telefonoInicial}
+      horarios={horarios}
     />
   );
 }

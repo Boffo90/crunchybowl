@@ -1,13 +1,15 @@
 import Link from "next/link";
 import { ShoppingBag, DollarSign, Users, TrendingUp } from "lucide-react";
-import { createClient } from "@/lib/supabase/server";
+// Lecturas con service role: el middleware ya restringe /admin/* al email admin,
+// y la sesion del admin no pasa las politicas RLS de pedidos/perfiles ajenos.
+import { createAdminClient } from "@/lib/supabase/admin";
 import { formatCLP } from "@/lib/utils";
 import { ROUTES } from "@/lib/routes";
 
 export const dynamic = "force-dynamic";
 
 export default async function AdminDashboard() {
-  const supabase = createClient();
+  const supabase = createAdminClient();
 
   const hoy = new Date();
   hoy.setHours(0, 0, 0, 0);

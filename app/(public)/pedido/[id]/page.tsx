@@ -59,8 +59,15 @@ export default async function PedidoPage({ params }: { params: { id: string } })
             <CheckCircle2 className="h-8 w-8 text-crunchy-accent" />
           </div>
         </div>
-        <h1 className="mb-2 font-display text-3xl font-bold text-crunchy-dark">Pedido confirmado</h1>
+        <h1 className="mb-2 font-display text-3xl font-bold text-crunchy-dark">
+          {pedido.notas_generales?.includes("RESERVA") ? "Pedido reservado" : "Pedido confirmado"}
+        </h1>
         <p className="text-crunchy-muted">Pedido #{pedido.numero}</p>
+        {pedido.notas_generales?.includes("RESERVA") && (
+          <p className="mt-2 inline-block rounded-full bg-white/70 px-4 py-1 text-sm font-semibold text-crunchy-dark">
+            {pedido.notas_generales.split("\n")[0]}
+          </p>
+        )}
         <p className="mt-2 text-sm text-crunchy-dark">Te contactaremos por WhatsApp para confirmar.</p>
       </div>
 

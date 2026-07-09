@@ -1,10 +1,10 @@
 import { notFound } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { ProductoEditForm } from "@/components/admin/ProductoEditForm";
 import type { Producto } from "@/types";
 
 export default async function AdminProductoEditPage({ params }: { params: { id: string } }) {
-  const supabase = createClient();
+  const supabase = createAdminClient();
   const { data: producto } = await supabase
     .from("productos")
     .select("*")

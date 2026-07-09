@@ -1,9 +1,10 @@
-import { createClient } from "@/lib/supabase/server";
+// Service role: el middleware ya restringe /admin/*; RLS ocultaria perfiles ajenos.
+import { createAdminClient } from "@/lib/supabase/admin";
 
 export const dynamic = "force-dynamic";
 
 export default async function AdminClientesPage() {
-  const supabase = createClient();
+  const supabase = createAdminClient();
   const { data: clientes } = await supabase
     .from("profiles")
     .select("id, nombre, email, telefono, sellos, sellos_canjeados")

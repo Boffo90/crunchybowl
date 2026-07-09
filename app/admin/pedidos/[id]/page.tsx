@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { MapPin, Phone, Wallet, CreditCard, Landmark } from "lucide-react";
-import { createClient } from "@/lib/supabase/server";
+// Service role: el middleware ya restringe /admin/*; RLS ocultaria pedidos ajenos.
+import { createAdminClient } from "@/lib/supabase/admin";
 import { formatCLP } from "@/lib/utils";
 import { METODO_PAGO_LABEL, type MetodoPago } from "@/lib/pago";
 import { EstadoSelector } from "@/components/admin/EstadoSelector";
@@ -8,7 +9,7 @@ import { EstadoSelector } from "@/components/admin/EstadoSelector";
 export const dynamic = "force-dynamic";
 
 export default async function AdminPedidoDetailPage({ params }: { params: { id: string } }) {
-  const supabase = createClient();
+  const supabase = createAdminClient();
 
   const { data: pedido } = await supabase
     .from("pedidos")

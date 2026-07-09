@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
-import { estaAbiertoAhora, proximaApertura } from "@/lib/horarios";
+import { estaAbiertoAhora, parseHorarios } from "@/lib/horarios";
 import { getZona } from "@/lib/zonas";
 import type { Opcion, Producto } from "@/types";
 
@@ -22,18 +22,12 @@ const bodySchema = z.object({
   zona_id: z.string().nullable().optional(),
   metodo_pago: z.enum(["flow", "efectivo", "transferencia"]),
   notas_generales: z.string().max(300).nullable().optional(),
+  hora_entrega: z.string().trim().max(40).nullable().optional(),
   items: z.array(itemSchema).min(1),
 });
 
 export async function POST(req: Request) {
   try {
-    if (!estaAbiertoAhora()) {
-      return NextResponse.json(
-        { error: "Estamos cerrados en este momento. Abrimos " + proximaApertura() + "." },
-        { status: 400 }
-      );
-    }
-
     const supabase = createClient();
     const { data: { user } } = await supabase.auth.getUser();
 
@@ -54,6 +48,23 @@ export async function POST(req: Request) {
     }
 
     const admin = createAdminClient();
+
+    // Horarios configurables desde el admin. Si esta cerrado, el pedido se acepta
+    // igual como RESERVA, pero exige la hora a la que el cliente lo quiere.
+    const { data: configHorarios } = await admin
+      .from("configuracion")
+      .select("value")
+      .eq("key", "horarios")
+      .maybeSingle();
+    const horarios = parseHorarios(configHorarios?.value);
+    const abierto = estaAbiertoAhora(horarios);
+
+    if (!abierto && !body.hora_entrega) {
+      return NextResponse.json(
+        { error: "Estamos cerrados: indica a que hora quieres tu pedido para dejarlo reservado." },
+        { status: 400 }
+      );
+    }
 
     // Recalcular precios en el servidor a partir de la base de datos: nunca confiar
     // en precio_unitario/subtotal/total enviados por el cliente.
@@ -161,6 +172,12 @@ export async function POST(req: Request) {
 
     const total = subtotal + costoDelivery;
 
+    // Pedido fuera de horario: queda como reserva con la hora pedida, visible para el admin.
+    const notasFinal = [
+      !abierto && body.hora_entrega ? `⏰ RESERVA — entregar a las ${body.hora_entrega}` : null,
+      body.notas_generales || null,
+    ].filter(Boolean).join("\n") || null;
+
     const { data: pedido, error: e1 } = await admin
       .from("pedidos")
       .insert({
@@ -175,7 +192,7 @@ export async function POST(req: Request) {
         total,
         metodo_pago: body.metodo_pago,
         estado: "pendiente",
-        notas_generales: body.notas_generales || null,
+        notas_generales: notasFinal,
       })
       .select("id, numero")
       .single();
@@ -187,9 +204,75 @@ export async function POST(req: Request) {
       .insert(itemsPayload.map((i) => ({ ...i, pedido_id: pedido.id })));
     if (e2) return NextResponse.json({ error: e2.message }, { status: 500 });
 
+    // Aviso por correo al admin. Nunca debe hacer fallar el pedido.
+    try {
+      await notificarPedidoPorCorreo({
+        numero: pedido.numero,
+        id: pedido.id,
+        nombre: body.nombre,
+        telefono: body.telefono,
+        tipoEntrega: body.tipo_entrega,
+        direccion: body.direccion,
+        metodoPago: body.metodo_pago,
+        total,
+        notas: notasFinal,
+        items: itemsPayload.map((i) => `${i.cantidad}x ${i.nombre_producto}`),
+      });
+    } catch (e) {
+      console.error("Fallo el envio de correo del pedido", pedido.numero, e);
+    }
+
     return NextResponse.json({ pedido_id: pedido.id, numero: pedido.numero });
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Error inesperado";
     return NextResponse.json({ error: msg }, { status: 500 });
+  }
+}
+
+async function notificarPedidoPorCorreo(p: {
+  numero: number;
+  id: string;
+  nombre: string;
+  telefono: string;
+  tipoEntrega: string;
+  direccion: string | null;
+  metodoPago: string;
+  total: number;
+  notas: string | null;
+  items: string[];
+}) {
+  const apiKey = process.env.RESEND_API_KEY;
+  const destino = process.env.EMAIL_ADMIN;
+  // Sin key real configurada: se omite en silencio (el pedido ya quedo guardado).
+  if (!apiKey || apiKey.includes("xxxx") || !destino) return;
+
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://www.crunchybowl.cl";
+  const totalCLP = "$" + p.total.toLocaleString("es-CL");
+  const html = `
+    <div style="font-family:sans-serif;max-width:480px">
+      <h2 style="color:#FF6B9D">🍜 Nuevo pedido #${p.numero}</h2>
+      ${p.notas?.includes("RESERVA") ? `<p style="background:#FFF3CD;padding:8px 12px;border-radius:8px"><b>${p.notas.split("\n")[0]}</b></p>` : ""}
+      <p><b>Cliente:</b> ${p.nombre}<br/>
+      <b>Teléfono:</b> ${p.telefono}<br/>
+      <b>Entrega:</b> ${p.tipoEntrega === "retiro" ? "Retiro en local" : "Delivery — " + (p.direccion ?? "")}<br/>
+      <b>Pago:</b> ${p.metodoPago}<br/>
+      <b>Total:</b> ${totalCLP}</p>
+      <p><b>Productos:</b><br/>${p.items.join("<br/>")}</p>
+      ${p.notas ? `<p><b>Notas:</b><br/>${p.notas.replace(/\n/g, "<br/>")}</p>` : ""}
+      <p><a href="${siteUrl}/admin/pedidos/${p.id}" style="background:#FF6B9D;color:#fff;padding:10px 18px;border-radius:999px;text-decoration:none">Ver pedido en el panel</a></p>
+    </div>`;
+
+  const res = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+    body: JSON.stringify({
+      from: "CrunchyBowl <onboarding@resend.dev>",
+      to: [destino],
+      subject: `Nuevo pedido #${p.numero} — ${p.nombre} (${totalCLP})`,
+      html,
+    }),
+  });
+  if (!res.ok) {
+    console.error("Resend respondio", res.status, await res.text());
   }
 }

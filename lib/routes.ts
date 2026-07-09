@@ -10,6 +10,7 @@ export const ROUTES = {
   FIDELIDAD: "/fidelidad",
   COMO_FUNCIONA: "/como-funciona",
   CONTACTO: "/contacto",
+  NOSOTROS: "/nosotros",
   PRODUCTO: (slug: string) => `/producto/${slug}`,
   PEDIDO: (id: string) => `/pedido/${id}`,
   ADMIN: "/admin",

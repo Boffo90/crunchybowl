@@ -3,6 +3,8 @@
 import Link from "next/link";
 import Image from "next/image";
 import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/Button";
 import { ROUTES } from "@/lib/routes";
 import { useCart } from "@/lib/store/cart";
@@ -25,6 +27,7 @@ function groupOptions(opciones: Opcion[]) {
 }
 
 export function ProductConfigurator({ producto, opciones }: ProductConfiguratorProps) {
+  const router = useRouter();
   const addItem = useCart((state) => state.addItem);
   const [selected, setSelected] = useState<SelectionState>({});
 
@@ -97,6 +100,19 @@ export function ProductConfigurator({ producto, opciones }: ProductConfiguratorP
       precio_unitario: basePrice + extra,
       cantidad: 1,
       opciones: normalized,
+    });
+
+    toast.success(`${producto.nombre} agregado al carrito 🍜`, {
+      description: "¿Quieres ir a pagar o seguir mirando la carta?",
+      duration: 6000,
+      action: {
+        label: "Ir al checkout",
+        onClick: () => router.push(ROUTES.CHECKOUT),
+      },
+      cancel: {
+        label: "Seguir comprando",
+        onClick: () => router.push(ROUTES.CARTA),
+      },
     });
   };
 

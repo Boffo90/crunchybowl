@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { Award } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { LogoutButton } from "@/components/public/LogoutButton";
 import { ROUTES } from "@/lib/routes";
 
@@ -16,7 +17,8 @@ export default async function MiCuentaPage() {
     .eq("id", user.id)
     .maybeSingle();
 
-  const { data: config, error: configError } = await supabase
+  // RLS bloquea configuracion para usuarios normales: leerla con service role (solo servidor).
+  const { data: config, error: configError } = await createAdminClient()
     .from("configuracion")
     .select("value")
     .eq("key", "fidelidad")

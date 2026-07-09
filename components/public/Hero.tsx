@@ -1,11 +1,30 @@
 import Link from "next/link";
-import Image from "next/image";
+import { readdirSync } from "fs";
+import { join } from "path";
 import { Button } from "@/components/ui/Button";
 import { ROUTES } from "@/lib/routes";
+import { PromoCarousel, type PromoSlide } from "@/components/public/PromoCarousel";
 
 const HERO_IMAGE_URL = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/productos/hero-bibimbap.jpg`;
 
+// Toda imagen en public/promos/ se suma automaticamente al carrusel del hero.
+function slidesPromos(): PromoSlide[] {
+  try {
+    return readdirSync(join(process.cwd(), "public", "promos"))
+      .filter((f) => /\.(png|jpe?g|webp)$/i.test(f))
+      .sort()
+      .map((f) => ({ src: `/promos/${f}`, alt: "Promoción CrunchyBowl" }));
+  } catch {
+    return [];
+  }
+}
+
 export function Hero() {
+  const slides: PromoSlide[] = [
+    { src: HERO_IMAGE_URL, alt: "Chica feliz comiendo un bowl de bibimbap CrunchyBowl" },
+    ...slidesPromos(),
+  ];
+
   return (
     <section className="relative overflow-hidden">
       <div className="mx-auto grid max-w-7xl items-center gap-12 px-4 py-16 md:grid-cols-2 md:py-24">
@@ -30,17 +49,8 @@ export function Hero() {
             </Link>
           </div>
         </div>
-        <div className="relative">
-          <div className="relative mx-auto aspect-square max-w-md overflow-hidden rounded-full bg-gradient-to-br from-crunchy-pink-soft to-crunchy-lavender shadow-kawaii-lg">
-            <Image
-              src={HERO_IMAGE_URL}
-              alt="Chica feliz comiendo un bowl de bibimbap CrunchyBowl"
-              fill
-              sizes="(max-width: 768px) 100vw, 500px"
-              className="object-cover"
-              priority
-            />
-          </div>
+        <div className="relative pb-8">
+          <PromoCarousel slides={slides} />
         </div>
       </div>
     </section>
