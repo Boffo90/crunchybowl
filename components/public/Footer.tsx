@@ -34,8 +34,8 @@ export function Footer() {
         </div>
         <div>
           <h4 className="mb-3 font-semibold text-crunchy-dark">Síguenos</h4>
-          <a href="https://instagram.com/crunchybowl" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 text-crunchy-muted hover:text-crunchy-accent">
-            <Instagram className="h-5 w-5" /> @crunchybowl
+          <a href="https://instagram.com/crunchybowl.cl" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 text-crunchy-muted hover:text-crunchy-accent">
+            <Instagram className="h-5 w-5" /> @crunchybowl.cl
           </a>
         </div>
       </div>

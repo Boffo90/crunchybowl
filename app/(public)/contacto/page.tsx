@@ -56,7 +56,7 @@ export default function ContactoPage() {
         )}
 
         <a
-          href="https://instagram.com/crunchybowl"
+          href="https://instagram.com/crunchybowl.cl"
           target="_blank"
           rel="noopener noreferrer"
           className="flex items-center gap-4 rounded-kawaii bg-white p-6 shadow-kawaii transition-shadow hover:shadow-kawaii-lg"
@@ -66,7 +66,7 @@ export default function ContactoPage() {
           </div>
           <div>
             <h3 className="mb-1 font-semibold text-crunchy-dark">Instagram</h3>
-            <p className="text-sm text-crunchy-muted">@crunchybowl</p>
+            <p className="text-sm text-crunchy-muted">@crunchybowl.cl</p>
           </div>
         </a>
       </div>
