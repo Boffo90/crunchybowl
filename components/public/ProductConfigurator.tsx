@@ -38,6 +38,23 @@ export function ProductConfigurator({ producto, opciones }: ProductConfiguratorP
     return sum + (value === opcion.nombre ? opcion.precio_extra : 0);
   }, 0);
 
+  const isSeleccionado = (grupo: string) => {
+    const value = selected[grupo];
+    return Array.isArray(value) ? value.length > 0 : Boolean(value);
+  };
+
+  // Grupos obligatorios (proteina, arroz): al menos una seleccion.
+  const gruposFaltantes = useMemo(
+    () =>
+      Object.entries(grouped)
+        .filter(([grupo, items]) => items.some((i) => i.requerido) && !isSeleccionado(grupo))
+        .map(([grupo]) => grupo),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [grouped, selected]
+  );
+
+  const puedeAgregar = gruposFaltantes.length === 0;
+
   const toggleOption = (grupo: string, nombre: string, maxSeleccion: number) => {
     setSelected((prev) => {
       const current = prev[grupo];
@@ -63,6 +80,8 @@ export function ProductConfigurator({ producto, opciones }: ProductConfiguratorP
   };
 
   const handleAddToCart = () => {
+    if (!puedeAgregar) return;
+
     const normalized: Record<string, string | string[]> = {};
     Object.entries(selected).forEach(([grupo, value]) => {
       if (Array.isArray(value) && value.length > 0) {
@@ -109,13 +128,20 @@ export function ProductConfigurator({ producto, opciones }: ProductConfiguratorP
         <div className="mb-8 text-3xl font-bold text-crunchy-accent">{formatCLP(basePrice + extra)}</div>
 
         <div className="flex flex-wrap gap-3">
-          <Button size="lg" onClick={handleAddToCart}>Agregar al carrito</Button>
+          <Button size="lg" onClick={handleAddToCart} disabled={!puedeAgregar}>
+            Agregar al carrito
+          </Button>
           <Link href={ROUTES.CARTA}>
             <Button size="lg" variant="secondary">
               Volver a la carta
             </Button>
           </Link>
         </div>
+        {!puedeAgregar && (
+          <p className="mt-3 text-sm font-medium text-crunchy-accent">
+            Para continuar, elige: {gruposFaltantes.join(", ")}.
+          </p>
+        )}
       </div>
 
       <div className="w-full max-w-md rounded-kawaii border border-crunchy-pink-soft bg-white p-6 shadow-kawaii">
@@ -128,12 +154,16 @@ export function ProductConfigurator({ producto, opciones }: ProductConfiguratorP
             {Object.entries(grouped).map(([grupo, items]) => {
               const maxSeleccion = Math.max(...items.map((item) => item.max_seleccion || 1), 1);
               const multi = maxSeleccion > 1;
+              const requerido = items.some((item) => item.requerido);
               const currentValue = selected[grupo];
 
               return (
                 <div key={grupo} className="rounded-2xl border border-crunchy-pink-soft/60 p-4">
                   <div className="mb-3 flex items-center justify-between gap-2">
-                    <h3 className="font-semibold text-crunchy-dark">{grupo}</h3>
+                    <h3 className="font-semibold capitalize text-crunchy-dark">
+                      {grupo}
+                      {requerido && <span className="ml-1 text-crunchy-accent">*</span>}
+                    </h3>
                     <span className="text-xs font-medium uppercase tracking-wide text-crunchy-muted">
                       {multi ? `Elige hasta ${maxSeleccion}` : "Elige una"}
                     </span>

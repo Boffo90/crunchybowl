@@ -1,7 +1,8 @@
 import { notFound } from "next/navigation";
-import { MapPin, Phone, Wallet, CreditCard } from "lucide-react";
+import { MapPin, Phone, Wallet, CreditCard, Landmark } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { formatCLP } from "@/lib/utils";
+import { METODO_PAGO_LABEL, type MetodoPago } from "@/lib/pago";
 import { EstadoSelector } from "@/components/admin/EstadoSelector";
 
 export const dynamic = "force-dynamic";
@@ -52,9 +53,15 @@ export default async function AdminPedidoDetailPage({ params }: { params: { id: 
             </span>
           </div>
           <div className="flex items-center gap-3">
-            {pedido.metodo_pago === "flow" ? <CreditCard className="h-4 w-4 text-crunchy-accent" /> : <Wallet className="h-4 w-4 text-crunchy-accent" />}
+            {pedido.metodo_pago === "flow" ? (
+              <CreditCard className="h-4 w-4 text-crunchy-accent" />
+            ) : pedido.metodo_pago === "transferencia" ? (
+              <Landmark className="h-4 w-4 text-crunchy-accent" />
+            ) : (
+              <Wallet className="h-4 w-4 text-crunchy-accent" />
+            )}
             <span className="font-semibold text-crunchy-dark">
-              {pedido.metodo_pago === "flow" ? "Flow.cl" : "Al entregar / retirar"}
+              {METODO_PAGO_LABEL[pedido.metodo_pago as MetodoPago] ?? pedido.metodo_pago}
             </span>
           </div>
           {pedido.notas_generales && (

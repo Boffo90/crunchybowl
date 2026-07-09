@@ -14,13 +14,13 @@ const itemSchema = z.object({
 });
 
 const bodySchema = z.object({
-  user_id: z.string().uuid(),
+  user_id: z.string().uuid().nullable().optional(),
   nombre: z.string().trim().min(1),
   telefono: z.string().trim().min(1),
   tipo_entrega: z.enum(["retiro", "delivery"]),
   direccion: z.string().trim().min(1).nullable(),
   zona_id: z.string().nullable().optional(),
-  metodo_pago: z.enum(["flow", "efectivo"]),
+  metodo_pago: z.enum(["flow", "efectivo", "transferencia"]),
   notas_generales: z.string().max(300).nullable().optional(),
   items: z.array(itemSchema).min(1),
 });
@@ -36,7 +36,6 @@ export async function POST(req: Request) {
 
     const supabase = createClient();
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return NextResponse.json({ error: "No autenticado" }, { status: 401 });
 
     const parsed = bodySchema.safeParse(await req.json());
     if (!parsed.success) {
@@ -44,7 +43,11 @@ export async function POST(req: Request) {
     }
     const body = parsed.data;
 
-    if (user.id !== body.user_id) return NextResponse.json({ error: "Usuario invalido" }, { status: 403 });
+    // Invitado: user_id null. Con sesion: se ignora lo que mande el cliente y se usa el user real.
+    if (user && body.user_id && body.user_id !== user.id) {
+      return NextResponse.json({ error: "Usuario invalido" }, { status: 403 });
+    }
+    const effectiveUserId = user ? user.id : null;
 
     if (body.tipo_entrega === "delivery" && !body.direccion) {
       return NextResponse.json({ error: "Direccion requerida para delivery" }, { status: 400 });
@@ -79,9 +82,51 @@ export async function POST(req: Request) {
     const opciones = (opcionesData ?? []) as Opcion[];
 
     let subtotal = 0;
-    const itemsPayload = body.items.map((i) => {
+    const itemsPayload: Array<{
+      producto_id: string;
+      nombre_producto: string;
+      precio_unitario: number;
+      cantidad: number;
+      opciones_seleccionadas: Record<string, string | string[]>;
+      notas: string | null;
+      subtotal: number;
+    }> = [];
+
+    for (const i of body.items) {
       const producto = productosPorId.get(i.producto_id)!;
       const opcionesProducto = opciones.filter((o) => o.producto_id === i.producto_id);
+
+      // Validar reglas de opciones (grupos requeridos y maximo por grupo) en el servidor.
+      const grupos = [...new Set(opcionesProducto.map((o) => o.grupo))];
+      for (const grupo of grupos) {
+        const opcionesGrupo = opcionesProducto.filter((o) => o.grupo === grupo);
+        const requerido = opcionesGrupo.some((o) => o.requerido);
+        const maxSeleccion = Math.max(...opcionesGrupo.map((o) => o.max_seleccion || 1), 1);
+
+        const valor = i.opciones_seleccionadas[grupo];
+        const seleccionados = Array.isArray(valor) ? valor : valor ? [valor] : [];
+
+        if (requerido && seleccionados.length < 1) {
+          return NextResponse.json(
+            { error: `Debes elegir ${grupo} para ${producto.nombre}` },
+            { status: 400 }
+          );
+        }
+        if (seleccionados.length > maxSeleccion) {
+          return NextResponse.json(
+            { error: `Maximo ${maxSeleccion} en ${grupo} para ${producto.nombre}` },
+            { status: 400 }
+          );
+        }
+        for (const nombre of seleccionados) {
+          if (!opcionesGrupo.some((o) => o.nombre === nombre)) {
+            return NextResponse.json(
+              { error: `Opcion invalida en ${grupo} para ${producto.nombre}` },
+              { status: 400 }
+            );
+          }
+        }
+      }
 
       let extra = 0;
       for (const [grupo, valor] of Object.entries(i.opciones_seleccionadas)) {
@@ -96,7 +141,7 @@ export async function POST(req: Request) {
       const itemSubtotal = precioUnitario * i.cantidad;
       subtotal += itemSubtotal;
 
-      return {
+      itemsPayload.push({
         producto_id: i.producto_id,
         nombre_producto: producto.nombre,
         precio_unitario: precioUnitario,
@@ -104,8 +149,8 @@ export async function POST(req: Request) {
         opciones_seleccionadas: i.opciones_seleccionadas,
         notas: i.notas ?? null,
         subtotal: itemSubtotal,
-      };
-    });
+      });
+    }
 
     let costoDelivery = 0;
     if (body.tipo_entrega === "delivery") {
@@ -119,7 +164,7 @@ export async function POST(req: Request) {
     const { data: pedido, error: e1 } = await admin
       .from("pedidos")
       .insert({
-        user_id: body.user_id,
+        user_id: effectiveUserId,
         nombre: body.nombre,
         telefono: body.telefono,
         tipo_entrega: body.tipo_entrega,

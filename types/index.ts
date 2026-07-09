@@ -62,7 +62,7 @@ export type Pedido = {
   subtotal: number;
   descuento: number;
   total: number;
-  metodo_pago: 'flow' | 'efectivo';
+  metodo_pago: 'flow' | 'efectivo' | 'transferencia';
   estado: EstadoPedido;
   notas_generales: string | null;
   created_at: string;

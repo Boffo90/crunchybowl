@@ -35,10 +35,7 @@ export async function middleware(request: NextRequest) {
     }
   }
 
-  if (
-    request.nextUrl.pathname.startsWith('/mi-cuenta') ||
-    request.nextUrl.pathname.startsWith('/checkout')
-  ) {
+  if (request.nextUrl.pathname.startsWith('/mi-cuenta')) {
     if (!user) return NextResponse.redirect(new URL('/login', request.url));
   }
 
@@ -49,7 +46,6 @@ export const config = {
   matcher: [
     '/admin/:path*',
     '/mi-cuenta/:path*',
-    '/checkout/:path*',
     '/login',
     '/registro'
   ],

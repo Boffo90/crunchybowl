@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
-import { AlertCircle, Bike, Home, Wallet, CreditCard } from "lucide-react";
+import { AlertCircle, Bike, Home, Wallet, CreditCard, Landmark, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { useCart } from "@/lib/store/cart";
@@ -11,8 +11,9 @@ import { formatCLP } from "@/lib/utils";
 import { estaAbiertoAhora, proximaApertura } from "@/lib/horarios";
 import { ZONAS_DELIVERY, getZona } from "@/lib/zonas";
 import { ROUTES } from "@/lib/routes";
+import { DATOS_TRANSFERENCIA } from "@/lib/pago";
 
-type Props = { userId: string; nombreInicial: string; telefonoInicial: string };
+type Props = { userId: string | null; nombreInicial: string; telefonoInicial: string };
 
 export function CheckoutForm({ userId, nombreInicial, telefonoInicial }: Props) {
   const [mounted, setMounted] = useState(false);
@@ -31,7 +32,7 @@ export function CheckoutForm({ userId, nombreInicial, telefonoInicial }: Props) 
     zona_id: "centro",
     direccion: "",
     referencia: "",
-    metodo_pago: "flow" as "flow" | "efectivo",
+    metodo_pago: "efectivo" as "efectivo" | "transferencia" | "flow",
     notas_generales: "",
   });
 
@@ -126,6 +127,28 @@ export function CheckoutForm({ userId, nombreInicial, telefonoInicial }: Props) 
   return (
     <div className="mx-auto max-w-5xl px-4 py-12">
       <h1 className="mb-8 font-display text-4xl font-bold text-crunchy-dark">Checkout</h1>
+
+      {!userId && (
+        <div className="mb-6 flex flex-col gap-3 rounded-kawaii border-2 border-crunchy-pink bg-crunchy-pink-soft p-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-start gap-3">
+            <Sparkles className="mt-0.5 h-5 w-5 shrink-0 text-crunchy-accent" />
+            <div>
+              <p className="font-semibold text-crunchy-dark">Estás comprando como invitado</p>
+              <p className="text-sm text-crunchy-muted">
+                Crea una cuenta y cada pedido suma un sello de fidelidad. ¡Junta sellos y gana un plato gratis!
+              </p>
+            </div>
+          </div>
+          <div className="flex shrink-0 gap-2">
+            <Link href={ROUTES.REGISTRO}>
+              <Button size="sm">Crear cuenta</Button>
+            </Link>
+            <Link href={ROUTES.LOGIN}>
+              <Button size="sm" variant="secondary">Entrar</Button>
+            </Link>
+          </div>
+        </div>
+      )}
 
       {!abierto && (
         <div className="mb-6 flex items-start gap-3 rounded-kawaii border-2 border-orange-300 bg-orange-50 p-4">
@@ -225,22 +248,6 @@ export function CheckoutForm({ userId, nombreInicial, telefonoInicial }: Props) 
             <div className="grid gap-3 sm:grid-cols-2">
               <label className={
                 "cursor-pointer rounded-2xl border-2 p-4 transition-all " +
-                (form.metodo_pago === "flow"
-                  ? "border-crunchy-accent bg-crunchy-pink-soft"
-                  : "border-crunchy-pink-soft bg-white hover:border-crunchy-pink")
-              }>
-                <input type="radio" name="metodo_pago" value="flow" checked={form.metodo_pago === "flow"} onChange={handleChange} className="sr-only" />
-                <div className="flex items-center gap-3">
-                  <CreditCard className="h-6 w-6 text-crunchy-accent" />
-                  <div>
-                    <p className="font-semibold text-crunchy-dark">Flow.cl</p>
-                    <p className="text-xs text-crunchy-muted">Debito, credito o transferencia</p>
-                  </div>
-                </div>
-              </label>
-
-              <label className={
-                "cursor-pointer rounded-2xl border-2 p-4 transition-all " +
                 (form.metodo_pago === "efectivo"
                   ? "border-crunchy-accent bg-crunchy-pink-soft"
                   : "border-crunchy-pink-soft bg-white hover:border-crunchy-pink")
@@ -249,12 +256,53 @@ export function CheckoutForm({ userId, nombreInicial, telefonoInicial }: Props) 
                 <div className="flex items-center gap-3">
                   <Wallet className="h-6 w-6 text-crunchy-accent" />
                   <div>
-                    <p className="font-semibold text-crunchy-dark">Al entregar / retirar</p>
-                    <p className="text-xs text-crunchy-muted">Efectivo o transferencia</p>
+                    <p className="font-semibold text-crunchy-dark">Presencial</p>
+                    <p className="text-xs text-crunchy-muted">Efectivo o débito al recibir</p>
+                  </div>
+                </div>
+              </label>
+
+              <label className={
+                "cursor-pointer rounded-2xl border-2 p-4 transition-all " +
+                (form.metodo_pago === "transferencia"
+                  ? "border-crunchy-accent bg-crunchy-pink-soft"
+                  : "border-crunchy-pink-soft bg-white hover:border-crunchy-pink")
+              }>
+                <input type="radio" name="metodo_pago" value="transferencia" checked={form.metodo_pago === "transferencia"} onChange={handleChange} className="sr-only" />
+                <div className="flex items-center gap-3">
+                  <Landmark className="h-6 w-6 text-crunchy-accent" />
+                  <div>
+                    <p className="font-semibold text-crunchy-dark">Transferencia</p>
+                    <p className="text-xs text-crunchy-muted">Te mostramos los datos al confirmar</p>
+                  </div>
+                </div>
+              </label>
+
+              <label className="cursor-not-allowed rounded-2xl border-2 border-crunchy-pink-soft bg-crunchy-cream p-4 opacity-60 sm:col-span-2">
+                <div className="flex items-center gap-3">
+                  <CreditCard className="h-6 w-6 text-crunchy-muted" />
+                  <div>
+                    <p className="font-semibold text-crunchy-dark">Flow.cl <span className="ml-1 rounded-full bg-crunchy-pink-soft px-2 py-0.5 text-xs font-semibold text-crunchy-accent">Próximamente</span></p>
+                    <p className="text-xs text-crunchy-muted">Débito, crédito o transferencia en línea</p>
                   </div>
                 </div>
               </label>
             </div>
+
+            {form.metodo_pago === "transferencia" && (
+              <div className="mt-4 rounded-2xl border-2 border-crunchy-pink-soft bg-crunchy-cream p-4 text-sm">
+                <p className="mb-2 font-semibold text-crunchy-dark">Datos para transferir</p>
+                <ul className="space-y-1 text-crunchy-muted">
+                  <li><span className="font-medium text-crunchy-dark">Nombre:</span> {DATOS_TRANSFERENCIA.nombre}</li>
+                  <li><span className="font-medium text-crunchy-dark">{DATOS_TRANSFERENCIA.tipoCuenta}:</span> {DATOS_TRANSFERENCIA.numero}</li>
+                  <li><span className="font-medium text-crunchy-dark">Banco:</span> {DATOS_TRANSFERENCIA.banco}</li>
+                  <li><span className="font-medium text-crunchy-dark">RUT:</span> {DATOS_TRANSFERENCIA.rut}</li>
+                </ul>
+                <p className="mt-2 text-xs text-crunchy-muted">
+                  Realiza la transferencia y envíanos el comprobante por WhatsApp. Confirmamos tu pedido al recibirlo.
+                </p>
+              </div>
+            )}
           </section>
 
           <section className="rounded-kawaii bg-white p-6 shadow-kawaii">
