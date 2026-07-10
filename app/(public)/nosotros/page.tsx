@@ -23,7 +23,7 @@ export default function NosotrosPage() {
         <div className="relative mx-auto aspect-square w-full max-w-sm overflow-hidden rounded-kawaii shadow-kawaii-lg">
           <Image
             src={HERO_IMAGE_URL}
-            alt="CrunchyBowl — comida coreana hecha con amor"
+            alt="CrunchyBowl — comida coreana hecha en casa"
             fill
             sizes="(max-width: 768px) 100vw, 400px"
             className="object-cover"
@@ -57,7 +57,7 @@ export default function NosotrosPage() {
           <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-crunchy-pink-soft">
             <Heart className="h-7 w-7 text-crunchy-accent" />
           </div>
-          <h3 className="mb-1 font-semibold text-crunchy-dark">Con mucho amor</h3>
+          <h3 className="mb-1 font-semibold text-crunchy-dark">De hobby a oficio</h3>
           <p className="text-sm text-crunchy-muted">Un hobby que se convirtió en el proyecto más rico de todos.</p>
         </div>
         <div className="rounded-kawaii bg-white p-6 text-center shadow-kawaii">

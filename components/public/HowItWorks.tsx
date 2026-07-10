@@ -2,7 +2,7 @@ const steps = [
   { title: "Elige tus productos", desc: "Explora la carta y arma tu pedido" },
   { title: "Retiro o delivery", desc: "Escoge cómo lo quieres recibir" },
   { title: "Paga seguro", desc: "Flow.cl o pago al recibir" },
-  { title: "Preparamos con amor", desc: "Cocinamos al momento" },
+  { title: "Preparamos tu pedido", desc: "Cocinamos al momento" },
   { title: "Disfruta", desc: "Retira o recibe tu pedido" },
 ];
 

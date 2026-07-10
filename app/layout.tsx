@@ -18,7 +18,7 @@ const fredoka = Fredoka({
 export const metadata: Metadata = {
   title: 'CrunchyBowl 🍜 — Comida coreana en Pucón',
   description:
-	'Bibimbap, Japchae y Pollo Frito Coreano hecho en casa con mucho amor. Delivery y retiro en Pucón.',
+	'Bibimbap, Japchae y Pollo Frito Coreano hecho en casa. Delivery y retiro en Pucón.',
   icons: { icon: '/brand/logo.webp' }
 };
 

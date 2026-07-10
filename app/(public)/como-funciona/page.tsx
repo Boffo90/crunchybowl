@@ -19,7 +19,7 @@ const pasos = [
     desc: "Paga en línea con Flow.cl (débito, crédito o transferencia) o al recibir tu pedido, en efectivo o transferencia.",
   },
   {
-    title: "Preparamos con amor",
+    title: "Preparamos tu pedido",
     desc: "Cada pedido se cocina al momento en casa, apenas confirmamos tu compra — nada de comida esperando horas.",
   },
   {

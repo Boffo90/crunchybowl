@@ -35,11 +35,11 @@ export function Hero() {
           </div>
           <h1 className="mb-6 font-display text-5xl font-bold leading-tight text-crunchy-dark md:text-6xl">
             Comida coreana <br />
-            hecha en casa <br />
-            con <span className="text-crunchy-accent">mucho amor</span>
+            hecha en casa, <br />
+            en <span className="text-crunchy-accent">Pucón</span>
           </h1>
           <p className="mb-8 max-w-md text-lg text-crunchy-muted">
-            Crunchy por fuera, tierno por dentro, feliz por siempre. Bibimbap, Japchae y Pollo Frito Coreano recién hechos.
+            Bibimbap, Japchae y Pollo Frito Coreano preparados al momento. Pide para retiro o delivery.
           </p>
           <div className="flex flex-wrap gap-4">
             <Link href={ROUTES.CARTA}>

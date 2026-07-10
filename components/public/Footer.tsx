@@ -15,7 +15,7 @@ export async function Footer() {
             <Image src="/brand/logo.webp" alt="CrunchyBowl" width={48} height={48} className="rounded-full" />
             <span className="font-display text-xl font-bold text-crunchy-accent">CrunchyBowl</span>
           </div>
-          <p className="text-sm text-crunchy-muted">Comida coreana hecha en casa con mucho amor. Solo en Pucón.</p>
+          <p className="text-sm text-crunchy-muted">Comida coreana hecha en casa. Solo en Pucón.</p>
         </div>
         <div>
           <h4 className="mb-3 font-semibold text-crunchy-dark">Explora</h4>
@@ -43,7 +43,7 @@ export async function Footer() {
         </div>
       </div>
       <div className="border-t border-crunchy-pink-soft py-4 text-center text-xs text-crunchy-muted">
-        © {new Date().getFullYear()} CrunchyBowl · Hecho con amor en Pucón
+        © {new Date().getFullYear()} CrunchyBowl · Pucón, Chile
       </div>
     </footer>
   );

@@ -92,9 +92,9 @@ All prices are represented as whole numbers (integers), as Chilean Peso (CLP) do
 ## 5. Domain Logic & Specific Rules
 
 ### 5.1. Delivery Fee Calculation (`lib/delivery.ts`)
-Delivery fees are based on the **Haversine formula** starting from a fixed origin in Pucón (`lat: -39.2833, lng: -71.9556`):
-- **Within Rotondas (≤ 2.5 km):** Flat rate of **$1,500 CLP**.
-- **Outside Rotondas (> 2.5 km up to 10 km max):** Base tariff of **$3,000 CLP** + **$300 CLP per extra km** (rounded up).
+Delivery fees combine a bounding box for the urban center with the **Haversine distance** from a fixed origin in Pucón (`lat: -39.2833, lng: -71.9556`):
+- **Within Rotondas (centro):** the box delimited by Rotonda Poniente/Costanera (lng ≥ -71.9791), Rotonda Matus/Camino Internacional (lng ≤ -71.9496) and the south-access roundabout (lat ≥ -39.2912). Flat rate of **$1,500 CLP**.
+- **Outside Rotondas (up to 10 km max):** Base tariff of **$3,000 CLP** even at short distances, plus **$300 CLP per km beyond 2.5 km** (rounded up).
 - **Over 10 km:** Delivery is unavailable.
 
 ### 5.2. Named Delivery Zones (`lib/zonas.ts`)
