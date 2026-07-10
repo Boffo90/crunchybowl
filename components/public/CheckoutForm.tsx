@@ -27,6 +27,10 @@ export function CheckoutForm({ userId, nombreInicial, telefonoInicial, horarios,
   const [abierto, setAbierto] = useState(true);
   const [ventana, setVentana] = useState<{ dia: string; apertura: string; cierre: string } | null>(null);
   const [horaEntrega, setHoraEntrega] = useState("");
+  // Cotizacion de delivery por distancia (geocodificada); modoZona es el respaldo manual.
+  const [cotizacion, setCotizacion] = useState<{ costo: number; distancia_km: number; direccion: string } | null>(null);
+  const [cotizando, setCotizando] = useState(false);
+  const [modoZona, setModoZona] = useState(false);
 
   const items = useCart((s) => s.items);
   const subtotal = useCart((s) => s.getSubtotal());
@@ -52,13 +56,48 @@ export function CheckoutForm({ userId, nombreInicial, telefonoInicial, horarios,
 
   const costoDelivery = useMemo(() => {
     if (form.tipo_entrega === "retiro") return 0;
-    return getZona(form.zona_id)?.tarifa ?? 0;
-  }, [form.tipo_entrega, form.zona_id]);
+    if (modoZona) return getZona(form.zona_id)?.tarifa ?? 0;
+    return cotizacion?.costo ?? 0;
+  }, [form.tipo_entrega, form.zona_id, modoZona, cotizacion]);
 
   const total = subtotal + costoDelivery;
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+    // Si cambia la direccion, la cotizacion anterior deja de ser valida.
+    if (e.target.name === "direccion") setCotizacion(null);
     setForm((f) => ({ ...f, [e.target.name]: e.target.value }));
+  };
+
+  const handleCotizar = async () => {
+    if (form.direccion.trim().length < 5) {
+      toast.error("Escribe tu direccion completa primero");
+      return;
+    }
+    setCotizando(true);
+    try {
+      const res = await fetch("/api/delivery/cotizar", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ direccion: form.direccion }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "No se pudo calcular la tarifa");
+      if (!data.encontrada) {
+        setCotizacion(null);
+        toast.error("No encontramos tu direccion. Revisala o elige tu zona manualmente.");
+        return;
+      }
+      if (!data.disponible) {
+        setCotizacion(null);
+        toast.error(data.mensaje || "Tu direccion esta fuera de nuestro radio de delivery.");
+        return;
+      }
+      setCotizacion({ costo: data.costo, distancia_km: data.distancia_km, direccion: data.direccion });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "No se pudo calcular la tarifa");
+    } finally {
+      setCotizando(false);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -73,6 +112,10 @@ export function CheckoutForm({ userId, nombreInicial, telefonoInicial, horarios,
     }
     if (form.tipo_entrega === "delivery" && !form.direccion.trim()) {
       toast.error("Ingresa tu direccion de entrega");
+      return;
+    }
+    if (form.tipo_entrega === "delivery" && !modoZona && !cotizacion) {
+      toast.error("Calcula la tarifa de delivery para tu direccion");
       return;
     }
     if (form.metodo_pago === "flow" && !userId && !form.email.trim()) {
@@ -90,13 +133,10 @@ export function CheckoutForm({ userId, nombreInicial, telefonoInicial, horarios,
           nombre: form.nombre,
           telefono: form.telefono,
           tipo_entrega: form.tipo_entrega,
-          direccion: form.tipo_entrega === "delivery"
-            ? form.direccion + (form.referencia ? " (" + form.referencia + ")" : "")
-            : null,
-          zona_id: form.tipo_entrega === "delivery" ? form.zona_id : null,
-          costo_delivery: costoDelivery,
-          subtotal,
-          total,
+          direccion: form.tipo_entrega === "delivery" ? form.direccion : null,
+          referencia: form.tipo_entrega === "delivery" ? form.referencia || null : null,
+          delivery_modo: form.tipo_entrega === "delivery" ? (modoZona ? "zona" : "distancia") : null,
+          zona_id: form.tipo_entrega === "delivery" && modoZona ? form.zona_id : null,
           metodo_pago: form.metodo_pago,
           email: form.email.trim() || null,
           notas_generales: form.notas_generales || null,
@@ -257,28 +297,12 @@ export function CheckoutForm({ userId, nombreInicial, telefonoInicial, horarios,
 
             {form.tipo_entrega === "delivery" && (
               <div className="space-y-4">
-                <div>
-                  <label className="mb-2 block text-sm font-semibold text-crunchy-dark">Zona de entrega</label>
-                  <select
-                    name="zona_id"
-                    value={form.zona_id}
-                    onChange={handleChange}
-                    className="w-full rounded-2xl border-2 border-crunchy-pink-soft bg-white px-4 py-3 outline-none transition-colors focus:border-crunchy-accent"
-                  >
-                    {ZONAS_DELIVERY.map((z) => (
-                      <option key={z.id} value={z.id}>
-                        {z.nombre} - {formatCLP(z.tarifa)}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
                 <Input
                   label="Direccion completa"
                   name="direccion"
                   value={form.direccion}
                   onChange={handleChange}
-                  placeholder="Calle, numero, depto"
+                  placeholder="Calle y numero, Pucon"
                   required
                 />
                 <Input
@@ -288,6 +312,62 @@ export function CheckoutForm({ userId, nombreInicial, telefonoInicial, horarios,
                   onChange={handleChange}
                   placeholder="Cerca de..., porton azul..."
                 />
+
+                {!modoZona ? (
+                  <>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="secondary"
+                      loading={cotizando}
+                      onClick={handleCotizar}
+                    >
+                      📍 Calcular tarifa de delivery
+                    </Button>
+
+                    {cotizacion && (
+                      <div className="rounded-2xl border-2 border-green-200 bg-green-50 p-4 text-sm">
+                        <p className="font-semibold text-green-800">
+                          Delivery a {cotizacion.distancia_km} km: {formatCLP(cotizacion.costo)}
+                        </p>
+                        <p className="mt-1 text-xs text-green-700">{cotizacion.direccion}</p>
+                      </div>
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={() => setModoZona(true)}
+                      className="block text-sm text-crunchy-accent underline"
+                    >
+                      ¿No encontramos tu direccion? Elige tu zona manualmente
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <div>
+                      <label className="mb-2 block text-sm font-semibold text-crunchy-dark">Zona de entrega</label>
+                      <select
+                        name="zona_id"
+                        value={form.zona_id}
+                        onChange={handleChange}
+                        className="w-full rounded-2xl border-2 border-crunchy-pink-soft bg-white px-4 py-3 outline-none transition-colors focus:border-crunchy-accent"
+                      >
+                        {ZONAS_DELIVERY.map((z) => (
+                          <option key={z.id} value={z.id}>
+                            {z.nombre} - {formatCLP(z.tarifa)}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setModoZona(false)}
+                      className="block text-sm text-crunchy-accent underline"
+                    >
+                      Volver al calculo automatico por direccion
+                    </button>
+                  </>
+                )}
               </div>
             )}
           </section>
@@ -408,7 +488,11 @@ export function CheckoutForm({ userId, nombreInicial, telefonoInicial, horarios,
             <div className="mb-4 flex justify-between text-sm">
               <span className="text-crunchy-muted">Delivery</span>
               <span className="font-semibold text-crunchy-dark">
-                {form.tipo_entrega === "retiro" ? "Gratis" : formatCLP(costoDelivery)}
+                {form.tipo_entrega === "retiro"
+                  ? "Gratis"
+                  : !modoZona && !cotizacion
+                    ? "Por calcular"
+                    : formatCLP(costoDelivery)}
               </span>
             </div>
 

@@ -4,6 +4,8 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { dentroDeVentana, estaAbiertoAhora, formatoVentana, parseHorarios, parseVentanasProductos } from "@/lib/horarios";
 import { crearPagoFlow, flowDisponible } from "@/lib/flow";
+import { geocodificarDireccion } from "@/lib/geocodificar";
+import { calcularDelivery } from "@/lib/delivery";
 import { getZona } from "@/lib/zonas";
 import type { Opcion, Producto } from "@/types";
 
@@ -19,7 +21,9 @@ const bodySchema = z.object({
   nombre: z.string().trim().min(1),
   telefono: z.string().trim().min(1),
   tipo_entrega: z.enum(["retiro", "delivery"]),
-  direccion: z.string().trim().min(1).nullable(),
+  direccion: z.string().trim().min(1).max(200).nullable(),
+  referencia: z.string().trim().max(200).nullable().optional(),
+  delivery_modo: z.enum(["zona", "distancia"]).nullable().optional(),
   zona_id: z.string().nullable().optional(),
   metodo_pago: z.enum(["flow", "efectivo", "transferencia"]),
   email: z.string().trim().email().nullable().optional(),
@@ -194,9 +198,31 @@ export async function POST(req: Request) {
 
     let costoDelivery = 0;
     if (body.tipo_entrega === "delivery") {
-      const zona = getZona(body.zona_id ?? "");
-      if (!zona) return NextResponse.json({ error: "Zona de delivery invalida" }, { status: 400 });
-      costoDelivery = zona.tarifa;
+      // Compatibilidad: sin delivery_modo se asume zona (pedidos desde la pagina antigua).
+      const modo = body.delivery_modo ?? "zona";
+      if (modo === "zona") {
+        const zona = getZona(body.zona_id ?? "");
+        if (!zona) return NextResponse.json({ error: "Zona de delivery invalida" }, { status: 400 });
+        costoDelivery = zona.tarifa;
+      } else {
+        // Tarifa por distancia: se geocodifica y recalcula en el servidor;
+        // nunca se confia en el costo que muestre el navegador.
+        const geo = await geocodificarDireccion(body.direccion!);
+        if (!geo) {
+          return NextResponse.json(
+            { error: "No pudimos ubicar tu direccion. Elige tu zona manualmente." },
+            { status: 400 }
+          );
+        }
+        const delivery = calcularDelivery(geo.lat, geo.lng);
+        if (!delivery.disponible) {
+          return NextResponse.json(
+            { error: delivery.mensaje ?? "Tu direccion esta fuera de nuestro radio de delivery" },
+            { status: 400 }
+          );
+        }
+        costoDelivery = delivery.costo;
+      }
     }
 
     const total = subtotal + costoDelivery;
@@ -214,7 +240,9 @@ export async function POST(req: Request) {
         nombre: body.nombre,
         telefono: body.telefono,
         tipo_entrega: body.tipo_entrega,
-        direccion: body.tipo_entrega === "delivery" ? body.direccion : null,
+        direccion: body.tipo_entrega === "delivery"
+          ? body.direccion + (body.referencia ? ` (${body.referencia})` : "")
+          : null,
         costo_delivery: costoDelivery,
         subtotal,
         descuento: 0,
