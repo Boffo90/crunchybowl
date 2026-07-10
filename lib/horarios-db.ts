@@ -1,5 +1,11 @@
 import { createClient } from "@supabase/supabase-js";
-import { HORARIOS_DEFAULT, parseHorarios, type HorariosConfig } from "@/lib/horarios";
+import {
+  HORARIOS_DEFAULT,
+  parseHorarios,
+  parseVentanasProductos,
+  type HorariosConfig,
+  type VentanaProducto,
+} from "@/lib/horarios";
 
 // SOLO USO EN SERVIDOR. Lee configuracion con el service role porque RLS
 // bloquea la tabla para el rol anon (y su contenido no es sensible: horarios).
@@ -37,4 +43,18 @@ export async function getHorarios(): Promise<HorariosConfig> {
 // Sin cache: para el checkout, donde el estado abierto/cerrado debe ser exacto.
 export async function getHorariosFresh(): Promise<HorariosConfig> {
   return fetchHorarios({ cache: "no-store" });
+}
+
+// Ventanas horarias por producto (ej: crunchy-lunch solo 12:00-14:00). Cache 60s.
+export async function getVentanasProductos(): Promise<Record<string, VentanaProducto>> {
+  try {
+    const { data } = await serverClient({ next: { revalidate: 60 } } as RequestInit)
+      .from("configuracion")
+      .select("value")
+      .eq("key", "horarios_productos")
+      .maybeSingle();
+    return parseVentanasProductos(data?.value);
+  } catch {
+    return {};
+  }
 }

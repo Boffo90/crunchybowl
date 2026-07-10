@@ -18,9 +18,10 @@ type Props = {
   nombreInicial: string;
   telefonoInicial: string;
   horarios: HorariosConfig;
+  flowHabilitado: boolean;
 };
 
-export function CheckoutForm({ userId, nombreInicial, telefonoInicial, horarios }: Props) {
+export function CheckoutForm({ userId, nombreInicial, telefonoInicial, horarios, flowHabilitado }: Props) {
   const [mounted, setMounted] = useState(false);
   const [loading, setLoading] = useState(false);
   const [abierto, setAbierto] = useState(true);
@@ -34,6 +35,7 @@ export function CheckoutForm({ userId, nombreInicial, telefonoInicial, horarios 
   const [form, setForm] = useState({
     nombre: nombreInicial,
     telefono: telefonoInicial,
+    email: "",
     tipo_entrega: "retiro" as "retiro" | "delivery",
     zona_id: "centro",
     direccion: "",
@@ -73,6 +75,10 @@ export function CheckoutForm({ userId, nombreInicial, telefonoInicial, horarios 
       toast.error("Ingresa tu direccion de entrega");
       return;
     }
+    if (form.metodo_pago === "flow" && !userId && !form.email.trim()) {
+      toast.error("Ingresa tu email para pagar con Flow");
+      return;
+    }
 
     setLoading(true);
     try {
@@ -92,6 +98,7 @@ export function CheckoutForm({ userId, nombreInicial, telefonoInicial, horarios 
           subtotal,
           total,
           metodo_pago: form.metodo_pago,
+          email: form.email.trim() || null,
           notas_generales: form.notas_generales || null,
           hora_entrega: !abierto ? horaEntrega : null,
           items: items.map((i) => ({
@@ -108,6 +115,11 @@ export function CheckoutForm({ userId, nombreInicial, telefonoInicial, horarios 
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Error al crear el pedido");
       clearCart();
+      if (data.flow_url) {
+        toast.success("Redirigiendo a Flow para pagar...");
+        window.location.href = data.flow_url;
+        return;
+      }
       toast.success("Pedido creado");
       window.location.href = ROUTES.PEDIDO(data.pedido_id);
     } catch (err) {
@@ -191,6 +203,19 @@ export function CheckoutForm({ userId, nombreInicial, telefonoInicial, horarios 
             <div className="grid gap-4 sm:grid-cols-2">
               <Input label="Nombre" name="nombre" value={form.nombre} onChange={handleChange} required />
               <Input label="Telefono" name="telefono" type="tel" value={form.telefono} onChange={handleChange} required />
+              {form.metodo_pago === "flow" && !userId && (
+                <div className="sm:col-span-2">
+                  <Input
+                    label="Email (para el comprobante de pago)"
+                    name="email"
+                    type="email"
+                    value={form.email}
+                    onChange={handleChange}
+                    placeholder="tu@email.com"
+                    required
+                  />
+                </div>
+              )}
             </div>
           </section>
 
@@ -302,15 +327,33 @@ export function CheckoutForm({ userId, nombreInicial, telefonoInicial, horarios 
                 </div>
               </label>
 
-              <label className="cursor-not-allowed rounded-2xl border-2 border-crunchy-pink-soft bg-crunchy-cream p-4 opacity-60 sm:col-span-2">
-                <div className="flex items-center gap-3">
-                  <CreditCard className="h-6 w-6 text-crunchy-muted" />
-                  <div>
-                    <p className="font-semibold text-crunchy-dark">Flow.cl <span className="ml-1 rounded-full bg-crunchy-pink-soft px-2 py-0.5 text-xs font-semibold text-crunchy-accent">Próximamente</span></p>
-                    <p className="text-xs text-crunchy-muted">Débito, crédito o transferencia en línea</p>
+              {flowHabilitado ? (
+                <label className={
+                  "cursor-pointer rounded-2xl border-2 p-4 transition-all sm:col-span-2 " +
+                  (form.metodo_pago === "flow"
+                    ? "border-crunchy-accent bg-crunchy-pink-soft"
+                    : "border-crunchy-pink-soft bg-white hover:border-crunchy-pink")
+                }>
+                  <input type="radio" name="metodo_pago" value="flow" checked={form.metodo_pago === "flow"} onChange={handleChange} className="sr-only" />
+                  <div className="flex items-center gap-3">
+                    <CreditCard className="h-6 w-6 text-crunchy-accent" />
+                    <div>
+                      <p className="font-semibold text-crunchy-dark">Pagar online con Flow.cl</p>
+                      <p className="text-xs text-crunchy-muted">Débito, crédito o prepago — te redirigimos a Flow al confirmar</p>
+                    </div>
                   </div>
-                </div>
-              </label>
+                </label>
+              ) : (
+                <label className="cursor-not-allowed rounded-2xl border-2 border-crunchy-pink-soft bg-crunchy-cream p-4 opacity-60 sm:col-span-2">
+                  <div className="flex items-center gap-3">
+                    <CreditCard className="h-6 w-6 text-crunchy-muted" />
+                    <div>
+                      <p className="font-semibold text-crunchy-dark">Flow.cl <span className="ml-1 rounded-full bg-crunchy-pink-soft px-2 py-0.5 text-xs font-semibold text-crunchy-accent">Próximamente</span></p>
+                      <p className="text-xs text-crunchy-muted">Débito, crédito o transferencia en línea</p>
+                    </div>
+                  </div>
+                </label>
+              )}
             </div>
 
             {form.metodo_pago === "transferencia" && (

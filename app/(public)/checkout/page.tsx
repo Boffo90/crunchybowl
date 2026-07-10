@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { CheckoutForm } from "@/components/public/CheckoutForm";
 import { getHorariosFresh } from "@/lib/horarios-db";
+import { flowDisponible } from "@/lib/flow";
 
 export default async function CheckoutPage() {
   const supabase = createClient();
@@ -26,6 +27,7 @@ export default async function CheckoutPage() {
       nombreInicial={nombreInicial}
       telefonoInicial={telefonoInicial}
       horarios={horarios}
+      flowHabilitado={flowDisponible()}
     />
   );
 }

@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { getVentanasProductos } from "@/lib/horarios-db";
 import { ProductCard } from "@/components/public/ProductCard";
 import type { Producto, Categoria } from "@/types";
 
@@ -7,9 +8,10 @@ export const revalidate = 60;
 export default async function CartaPage() {
   const supabase = createClient();
 
-  const [{ data: categorias }, { data: productos }] = await Promise.all([
+  const [{ data: categorias }, { data: productos }, ventanas] = await Promise.all([
     supabase.from("categorias").select("*").eq("activo", true).order("orden"),
     supabase.from("productos").select("*").eq("activo", true).order("orden"),
+    getVentanasProductos(),
   ]);
 
   const cats = (categorias as Categoria[] | null) ?? [];
@@ -33,7 +35,7 @@ export default async function CartaPage() {
               <h2 className="mb-6 font-display text-3xl font-bold text-crunchy-accent">{cat.nombre}</h2>
               <div className="grid gap-6 sm:grid-cols-2 md:grid-cols-3">
                 {productosCat.map((p) => (
-                  <ProductCard key={p.id} producto={p} />
+                  <ProductCard key={p.id} producto={p} ventana={ventanas[p.slug]} />
                 ))}
               </div>
             </section>

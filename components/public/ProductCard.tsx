@@ -1,14 +1,22 @@
 import Link from "next/link";
 import Image from "next/image";
 import { formatCLP, PRODUCTO_LABELS } from "@/lib/utils";
+import { formatoVentana, type VentanaProducto } from "@/lib/horarios";
 import { ROUTES } from "@/lib/routes";
 import type { Producto } from "@/types";
 
-export function ProductCard({ producto }: { producto: Producto }) {
+type Props = { producto: Producto; ventana?: VentanaProducto | null };
+
+export function ProductCard({ producto, ventana }: Props) {
   return (
     <Link href={ROUTES.PRODUCTO(producto.slug)} className="group block">
       <div className="overflow-hidden rounded-kawaii bg-white shadow-kawaii transition-all group-hover:-translate-y-1 group-hover:shadow-kawaii-lg">
         <div className="relative aspect-square overflow-hidden bg-gradient-to-br from-crunchy-pink-soft to-crunchy-cream">
+          {ventana && (
+            <span className="absolute left-3 top-3 z-10 rounded-full bg-white/90 px-3 py-1 text-xs font-bold text-crunchy-accent shadow-kawaii">
+              ⏰ Solo {formatoVentana(ventana)}
+            </span>
+          )}
           {producto.imagen_url ? (
             <Image
               src={producto.imagen_url}

@@ -2,18 +2,21 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/Button";
 import { ROUTES } from "@/lib/routes";
 import { useCart } from "@/lib/store/cart";
-import { formatCLP, PRODUCTO_LABELS } from "@/lib/utils";
+import { cn, formatCLP, PRODUCTO_LABELS } from "@/lib/utils";
+import { iconoOpcion } from "@/lib/opciones-iconos";
+import { dentroDeVentana, formatoVentana, type VentanaProducto } from "@/lib/horarios";
 import type { Opcion, Producto } from "@/types";
 
 type ProductConfiguratorProps = {
   producto: Producto;
   opciones: Opcion[];
+  ventanaHoraria?: VentanaProducto | null;
 };
 
 type SelectionState = Record<string, string | string[]>;
@@ -26,10 +29,16 @@ function groupOptions(opciones: Opcion[]) {
   }, {});
 }
 
-export function ProductConfigurator({ producto, opciones }: ProductConfiguratorProps) {
+export function ProductConfigurator({ producto, opciones, ventanaHoraria }: ProductConfiguratorProps) {
   const router = useRouter();
   const addItem = useCart((state) => state.addItem);
   const [selected, setSelected] = useState<SelectionState>({});
+  // null = sin restriccion. Se evalua al montar para evitar desfase SSR/cliente.
+  const [enVentana, setEnVentana] = useState(true);
+
+  useEffect(() => {
+    if (ventanaHoraria) setEnVentana(dentroDeVentana(ventanaHoraria));
+  }, [ventanaHoraria]);
 
   const grouped = useMemo(() => groupOptions(opciones), [opciones]);
   const basePrice = producto.precio_base;
@@ -56,7 +65,7 @@ export function ProductConfigurator({ producto, opciones }: ProductConfiguratorP
     [grouped, selected]
   );
 
-  const puedeAgregar = gruposFaltantes.length === 0;
+  const puedeAgregar = gruposFaltantes.length === 0 && enVentana;
 
   const toggleOption = (grupo: string, nombre: string, maxSeleccion: number) => {
     setSelected((prev) => {
@@ -153,7 +162,12 @@ export function ProductConfigurator({ producto, opciones }: ProductConfiguratorP
             </Button>
           </Link>
         </div>
-        {!puedeAgregar && (
+        {!enVentana && ventanaHoraria && (
+          <p className="mt-3 text-sm font-semibold text-orange-600">
+            ⏰ Disponible solo de {formatoVentana(ventanaHoraria)} hrs.
+          </p>
+        )}
+        {enVentana && gruposFaltantes.length > 0 && (
           <p className="mt-3 text-sm font-medium text-crunchy-accent">
             Para continuar, elige: {gruposFaltantes.join(", ")}.
           </p>
@@ -185,29 +199,38 @@ export function ProductConfigurator({ producto, opciones }: ProductConfiguratorP
                     </span>
                   </div>
 
-                  <div className="space-y-2">
+                  <div className="grid grid-cols-2 gap-2">
                     {items.map((opcion) => {
                       const checked = Array.isArray(currentValue)
                         ? currentValue.includes(opcion.nombre)
                         : currentValue === opcion.nombre;
 
                       return (
-                        <label key={opcion.id} className="flex cursor-pointer items-center justify-between rounded-xl border border-crunchy-pink-soft/50 px-3 py-2 text-sm">
-                          <span className="flex items-center gap-2">
-                            <input
-                              type={multi ? "checkbox" : "radio"}
-                              name={grupo}
-                              checked={checked}
-                              onChange={() => toggleOption(grupo, opcion.nombre, maxSeleccion)}
-                              className="h-4 w-4 accent-crunchy-accent"
-                            />
-                            <span className="text-crunchy-dark">{opcion.nombre}</span>
+                        <label
+                          key={opcion.id}
+                          className={cn(
+                            "flex cursor-pointer flex-col items-center gap-1 rounded-2xl border-2 px-2 py-3 text-center transition-all hover:-translate-y-0.5",
+                            checked
+                              ? "border-crunchy-accent bg-crunchy-pink-soft shadow-kawaii"
+                              : "border-crunchy-pink-soft/60 bg-white hover:border-crunchy-pink"
+                          )}
+                        >
+                          <input
+                            type={multi ? "checkbox" : "radio"}
+                            name={grupo}
+                            checked={checked}
+                            onChange={() => toggleOption(grupo, opcion.nombre, maxSeleccion)}
+                            className="sr-only"
+                          />
+                          <span className="text-3xl" aria-hidden>{iconoOpcion(opcion.nombre)}</span>
+                          <span className={cn("text-xs font-semibold leading-tight", checked ? "text-crunchy-accent" : "text-crunchy-dark")}>
+                            {opcion.nombre}
                           </span>
-                          {opcion.precio_extra > 0 ? (
-                            <span className="text-sm font-semibold text-crunchy-accent">
+                          {opcion.precio_extra > 0 && (
+                            <span className="text-[11px] font-semibold text-crunchy-accent">
                               +{formatCLP(opcion.precio_extra)}
                             </span>
-                          ) : null}
+                          )}
                         </label>
                       );
                     })}

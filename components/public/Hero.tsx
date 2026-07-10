@@ -20,10 +20,11 @@ function slidesPromos(): PromoSlide[] {
 }
 
 export function Hero() {
-  const slides: PromoSlide[] = [
-    { src: HERO_IMAGE_URL, alt: "Chica feliz comiendo un bowl de bibimbap CrunchyBowl" },
-    ...slidesPromos(),
-  ];
+  // Solo promos en el carrusel; la ilustracion queda de respaldo si no hay ninguna.
+  const promos = slidesPromos();
+  const slides: PromoSlide[] = promos.length > 0
+    ? promos
+    : [{ src: HERO_IMAGE_URL, alt: "Chica feliz comiendo un bowl de bibimbap CrunchyBowl" }];
 
   return (
     <section className="relative overflow-hidden">

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import { getVentanasProductos } from "@/lib/horarios-db";
 import { Hero } from "@/components/public/Hero";
 import { ProductCard } from "@/components/public/ProductCard";
 import { HowItWorks } from "@/components/public/HowItWorks";
@@ -12,11 +13,14 @@ export const revalidate = 60;
 
 export default async function HomePage() {
   const supabase = createClient();
-  const { data: productos } = await supabase
-    .from("productos")
-    .select("*")
-    .eq("activo", true)
-    .order("orden", { ascending: true });
+  const [{ data: productos }, ventanas] = await Promise.all([
+    supabase
+      .from("productos")
+      .select("*")
+      .eq("activo", true)
+      .order("orden", { ascending: true }),
+    getVentanasProductos(),
+  ]);
 
   const favoritos = (productos as Producto[] | null)?.slice(0, 3) ?? [];
 
@@ -37,7 +41,7 @@ export default async function HomePage() {
         ) : (
           <div className="grid gap-6 sm:grid-cols-2 md:grid-cols-3">
             {favoritos.map((p) => (
-              <ProductCard key={p.id} producto={p} />
+              <ProductCard key={p.id} producto={p} ventana={ventanas[p.slug]} />
             ))}
           </div>
         )}

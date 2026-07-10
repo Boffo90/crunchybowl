@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
-import { estaAbiertoAhora, parseHorarios } from "@/lib/horarios";
+import { dentroDeVentana, estaAbiertoAhora, formatoVentana, parseHorarios, parseVentanasProductos } from "@/lib/horarios";
+import { crearPagoFlow, flowDisponible } from "@/lib/flow";
 import { getZona } from "@/lib/zonas";
 import type { Opcion, Producto } from "@/types";
 
@@ -21,6 +22,7 @@ const bodySchema = z.object({
   direccion: z.string().trim().min(1).nullable(),
   zona_id: z.string().nullable().optional(),
   metodo_pago: z.enum(["flow", "efectivo", "transferencia"]),
+  email: z.string().trim().email().nullable().optional(),
   notas_generales: z.string().max(300).nullable().optional(),
   hora_entrega: z.string().trim().max(40).nullable().optional(),
   items: z.array(itemSchema).min(1),
@@ -45,6 +47,16 @@ export async function POST(req: Request) {
 
     if (body.tipo_entrega === "delivery" && !body.direccion) {
       return NextResponse.json({ error: "Direccion requerida para delivery" }, { status: 400 });
+    }
+
+    if (body.metodo_pago === "flow" && !flowDisponible()) {
+      return NextResponse.json({ error: "El pago con Flow no esta disponible por ahora" }, { status: 400 });
+    }
+
+    // Flow exige el email del pagador: cuenta con sesion o campo del formulario.
+    const emailPagador = user?.email ?? body.email ?? null;
+    if (body.metodo_pago === "flow" && !emailPagador) {
+      return NextResponse.json({ error: "Ingresa tu email para pagar con Flow" }, { status: 400 });
     }
 
     const admin = createAdminClient();
@@ -81,6 +93,23 @@ export async function POST(req: Request) {
 
     if (productos.length !== productoIds.length) {
       return NextResponse.json({ error: "Uno o mas productos ya no estan disponibles" }, { status: 400 });
+    }
+
+    // Productos con ventana horaria propia (ej: Crunchy Lunch 12:00-14:00).
+    const { data: ventanasRow } = await admin
+      .from("configuracion")
+      .select("value")
+      .eq("key", "horarios_productos")
+      .maybeSingle();
+    const ventanas = parseVentanasProductos(ventanasRow?.value);
+    for (const p of productos) {
+      const ventana = ventanas[p.slug];
+      if (ventana && !dentroDeVentana(ventana)) {
+        return NextResponse.json(
+          { error: `${p.nombre} está disponible solo de ${formatoVentana(ventana)} hrs` },
+          { status: 400 }
+        );
+      }
     }
 
     const { data: opcionesData, error: eOpciones } = await admin
@@ -204,6 +233,29 @@ export async function POST(req: Request) {
       .insert(itemsPayload.map((i) => ({ ...i, pedido_id: pedido.id })));
     if (e2) return NextResponse.json({ error: e2.message }, { status: 500 });
 
+    // Pago con Flow: crear la orden de pago y redirigir. Si Flow falla,
+    // se elimina el pedido para no dejar pedidos sin via de pago.
+    let flowUrl: string | null = null;
+    if (body.metodo_pago === "flow") {
+      try {
+        const pago = await crearPagoFlow({
+          commerceOrder: pedido.id,
+          subject: `Pedido #${pedido.numero} CrunchyBowl`,
+          amount: total,
+          email: emailPagador,
+        });
+        flowUrl = pago.redirectUrl;
+      } catch (err) {
+        console.error("Error creando pago Flow:", err);
+        await admin.from("pedido_items").delete().eq("pedido_id", pedido.id);
+        await admin.from("pedidos").delete().eq("id", pedido.id);
+        return NextResponse.json(
+          { error: "No se pudo iniciar el pago con Flow. Intenta con otro metodo." },
+          { status: 502 }
+        );
+      }
+    }
+
     // Aviso por correo al admin. Nunca debe hacer fallar el pedido.
     try {
       await notificarPedidoPorCorreo({
@@ -222,7 +274,7 @@ export async function POST(req: Request) {
       console.error("Fallo el envio de correo del pedido", pedido.numero, e);
     }
 
-    return NextResponse.json({ pedido_id: pedido.id, numero: pedido.numero });
+    return NextResponse.json({ pedido_id: pedido.id, numero: pedido.numero, flow_url: flowUrl });
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Error inesperado";
     return NextResponse.json({ error: msg }, { status: 500 });

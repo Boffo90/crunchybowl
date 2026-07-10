@@ -3,8 +3,8 @@ export type MetodoPago = "efectivo" | "transferencia" | "flow";
 export const DATOS_TRANSFERENCIA = {
   nombre: "Camila Figueroa",
   tipoCuenta: "Cuenta Vista",
-  numero: "050102976081",
-  banco: "Banco Falabella",
+  numero: "19406361",
+  banco: "Banco TAPP Los Andes",
   rut: "19.406.361-K",
 };
 

@@ -101,6 +101,33 @@ export function proximaVentana(config: HorariosConfig = HORARIOS_DEFAULT): { dia
   return { dia: "lunes", apertura: minutosAHora(a), cierre: minutosAHora(c) };
 }
 
+// Ventana horaria de un producto especifico (ej: Crunchy Lunch solo 12:00-14:00).
+export type VentanaProducto = [number, number];
+
+export function dentroDeVentana(ventana: VentanaProducto): boolean {
+  const { minutos } = ahoraEnChile();
+  return minutos >= ventana[0] && minutos < ventana[1];
+}
+
+export function formatoVentana(ventana: VentanaProducto): string {
+  return minutosAHora(ventana[0]) + " a " + minutosAHora(ventana[1]);
+}
+
+export function parseVentanasProductos(value: unknown): Record<string, VentanaProducto> {
+  if (!value || typeof value !== "object") return {};
+  const out: Record<string, VentanaProducto> = {};
+  for (const [slug, par] of Object.entries(value as Record<string, unknown>)) {
+    if (
+      Array.isArray(par) && par.length === 2 &&
+      typeof par[0] === "number" && typeof par[1] === "number" &&
+      par[0] >= 0 && par[1] <= 1440 && par[0] < par[1]
+    ) {
+      out[slug] = [par[0], par[1]];
+    }
+  }
+  return out;
+}
+
 export function formatearHorarioSemanal(config: HorariosConfig = HORARIOS_DEFAULT): string {
   const [aLun, cLun] = config.lun;
   const [aSab, cSab] = config.sab;
