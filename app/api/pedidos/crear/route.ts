@@ -266,7 +266,7 @@ async function notificarPedidoPorCorreo(p: {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
     body: JSON.stringify({
-      from: "CrunchyBowl <onboarding@resend.dev>",
+      from: process.env.EMAIL_FROM ?? "CrunchyBowl <onboarding@resend.dev>",
       to: [destino],
       subject: `Nuevo pedido #${p.numero} — ${p.nombre} (${totalCLP})`,
       html,
