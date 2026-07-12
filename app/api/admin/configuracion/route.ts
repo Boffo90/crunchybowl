@@ -14,7 +14,15 @@ const bodySchema = z.object({
     lun: parHorario, mar: parHorario, mie: parHorario, jue: parHorario,
     vie: parHorario, sab: parHorario, dom: parHorario,
   }).optional(),
-}).refine((b) => b.sellos_meta !== undefined || b.horarios !== undefined, "Nada que actualizar");
+  descuento: z.object({
+    activo: z.boolean(),
+    porcentaje: z.number().int().min(1).max(99),
+    motivo: z.string().trim().max(80),
+  }).optional(),
+}).refine(
+  (b) => b.sellos_meta !== undefined || b.horarios !== undefined || b.descuento !== undefined,
+  "Nada que actualizar"
+);
 
 export async function PATCH(req: Request) {
   const supabase = createClient();
@@ -41,6 +49,13 @@ export async function PATCH(req: Request) {
     const { error } = await admin
       .from("configuracion")
       .upsert({ key: "horarios", value: parsed.data.horarios }, { onConflict: "key" });
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  if (parsed.data.descuento !== undefined) {
+    const { error } = await admin
+      .from("configuracion")
+      .upsert({ key: "descuento", value: parsed.data.descuento }, { onConflict: "key" });
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   }
 

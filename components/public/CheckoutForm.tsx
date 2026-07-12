@@ -12,6 +12,7 @@ import { estaAbiertoAhora, proximaVentana, type HorariosConfig } from "@/lib/hor
 import { ZONAS_DELIVERY, getZona } from "@/lib/zonas";
 import { ROUTES } from "@/lib/routes";
 import { DATOS_TRANSFERENCIA } from "@/lib/pago";
+import { calcularDescuento, type DescuentoConfig } from "@/lib/descuento";
 
 type Props = {
   userId: string | null;
@@ -19,9 +20,10 @@ type Props = {
   telefonoInicial: string;
   horarios: HorariosConfig;
   flowHabilitado: boolean;
+  descuento: DescuentoConfig;
 };
 
-export function CheckoutForm({ userId, nombreInicial, telefonoInicial, horarios, flowHabilitado }: Props) {
+export function CheckoutForm({ userId, nombreInicial, telefonoInicial, horarios, flowHabilitado, descuento }: Props) {
   const [mounted, setMounted] = useState(false);
   const [loading, setLoading] = useState(false);
   const [abierto, setAbierto] = useState(true);
@@ -60,7 +62,8 @@ export function CheckoutForm({ userId, nombreInicial, telefonoInicial, horarios,
     return cotizacion?.costo ?? 0;
   }, [form.tipo_entrega, form.zona_id, modoZona, cotizacion]);
 
-  const total = subtotal + costoDelivery;
+  const montoDescuento = calcularDescuento(subtotal, descuento);
+  const total = subtotal + costoDelivery - montoDescuento;
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     // Si cambia la direccion, la cotizacion anterior deja de ser valida.
@@ -485,6 +488,12 @@ export function CheckoutForm({ userId, nombreInicial, telefonoInicial, horarios,
               <span className="text-crunchy-muted">Subtotal</span>
               <span className="font-semibold text-crunchy-dark">{formatCLP(subtotal)}</span>
             </div>
+            {montoDescuento > 0 && (
+              <div className="mb-2 flex justify-between text-sm">
+                <span className="font-semibold text-crunchy-accent">🎉 Descuento {descuento.porcentaje}%</span>
+                <span className="font-semibold text-crunchy-accent">-{formatCLP(montoDescuento)}</span>
+              </div>
+            )}
             <div className="mb-4 flex justify-between text-sm">
               <span className="text-crunchy-muted">Delivery</span>
               <span className="font-semibold text-crunchy-dark">

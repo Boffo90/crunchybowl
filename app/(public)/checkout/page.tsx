@@ -1,11 +1,11 @@
 import { createClient } from "@/lib/supabase/server";
 import { CheckoutForm } from "@/components/public/CheckoutForm";
-import { getHorariosFresh } from "@/lib/horarios-db";
+import { getDescuentoFresh, getHorariosFresh } from "@/lib/horarios-db";
 import { flowDisponible } from "@/lib/flow";
 
 export default async function CheckoutPage() {
   const supabase = createClient();
-  const horarios = await getHorariosFresh();
+  const [horarios, descuento] = await Promise.all([getHorariosFresh(), getDescuentoFresh()]);
   const { data: { user } } = await supabase.auth.getUser();
 
   let nombreInicial = "";
@@ -28,6 +28,7 @@ export default async function CheckoutPage() {
       telefonoInicial={telefonoInicial}
       horarios={horarios}
       flowHabilitado={flowDisponible()}
+      descuento={descuento}
     />
   );
 }

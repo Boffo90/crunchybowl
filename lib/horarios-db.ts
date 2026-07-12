@@ -6,6 +6,7 @@ import {
   type HorariosConfig,
   type VentanaProducto,
 } from "@/lib/horarios";
+import { DESCUENTO_INACTIVO, parseDescuento, type DescuentoConfig } from "@/lib/descuento";
 
 // SOLO USO EN SERVIDOR. Lee configuracion con el service role porque RLS
 // bloquea la tabla para el rol anon (y su contenido no es sensible: horarios).
@@ -43,6 +44,29 @@ export async function getHorarios(): Promise<HorariosConfig> {
 // Sin cache: para el checkout, donde el estado abierto/cerrado debe ser exacto.
 export async function getHorariosFresh(): Promise<HorariosConfig> {
   return fetchHorarios({ cache: "no-store" });
+}
+
+async function fetchDescuento(fetchOptions: RequestInit): Promise<DescuentoConfig> {
+  try {
+    const { data } = await serverClient(fetchOptions)
+      .from("configuracion")
+      .select("value")
+      .eq("key", "descuento")
+      .maybeSingle();
+    return parseDescuento(data?.value);
+  } catch {
+    return DESCUENTO_INACTIVO;
+  }
+}
+
+// Con cache de 60s: para el banner del sitio.
+export async function getDescuento(): Promise<DescuentoConfig> {
+  return fetchDescuento({ next: { revalidate: 60 } } as RequestInit);
+}
+
+// Sin cache: para el checkout, donde el monto mostrado debe ser exacto.
+export async function getDescuentoFresh(): Promise<DescuentoConfig> {
+  return fetchDescuento({ cache: "no-store" });
 }
 
 // Ventanas horarias por producto (ej: crunchy-lunch solo 12:00-14:00). Cache 60s.

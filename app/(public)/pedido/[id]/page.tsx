@@ -146,6 +146,12 @@ export default async function PedidoPage({ params }: { params: { id: string } })
           <span className="text-crunchy-muted">Subtotal</span>
           <span className="font-semibold text-crunchy-dark">{formatCLP(pedido.subtotal)}</span>
         </div>
+        {pedido.descuento > 0 && (
+          <div className="mb-2 flex justify-between text-sm">
+            <span className="font-semibold text-crunchy-accent">🎉 Descuento</span>
+            <span className="font-semibold text-crunchy-accent">-{formatCLP(pedido.descuento)}</span>
+          </div>
+        )}
         <div className="mb-4 flex justify-between text-sm">
           <span className="text-crunchy-muted">Delivery</span>
           <span className="font-semibold text-crunchy-dark">{formatCLP(pedido.costo_delivery)}</span>

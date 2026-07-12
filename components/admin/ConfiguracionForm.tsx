@@ -14,11 +14,17 @@ function horaAMinutos(hhmm: string): number {
   return (h || 0) * 60 + (m || 0);
 }
 
-type Props = { metaInicial: number; horariosIniciales: HorariosConfig };
+type Props = {
+  metaInicial: number;
+  horariosIniciales: HorariosConfig;
+  descuentoInicial: { activo: boolean; porcentaje: number; motivo: string };
+};
 
-export function ConfiguracionForm({ metaInicial, horariosIniciales }: Props) {
+export function ConfiguracionForm({ metaInicial, horariosIniciales, descuentoInicial }: Props) {
   const router = useRouter();
   const [meta, setMeta] = useState(metaInicial);
+  const [descuento, setDescuento] = useState(descuentoInicial);
+  const [loadingDescuento, setLoadingDescuento] = useState(false);
   const [horarios, setHorarios] = useState<Record<keyof HorariosConfig, { abre: string; cierra: string }>>(
     () =>
       Object.fromEntries(
@@ -49,6 +55,24 @@ export function ConfiguracionForm({ metaInicial, horariosIniciales }: Props) {
       toast.error(err instanceof Error ? err.message : "Error al guardar");
     } finally {
       setLoadingMeta(false);
+    }
+  };
+
+  const guardarDescuento = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (descuento.activo && (descuento.porcentaje < 1 || descuento.porcentaje > 99)) {
+      toast.error("El porcentaje debe estar entre 1 y 99");
+      return;
+    }
+    setLoadingDescuento(true);
+    try {
+      await patch({ descuento });
+      toast.success(descuento.activo ? `Descuento del ${descuento.porcentaje}% activado` : "Descuento desactivado");
+      router.refresh();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Error al guardar");
+    } finally {
+      setLoadingDescuento(false);
     }
   };
 
@@ -92,6 +116,39 @@ export function ConfiguracionForm({ metaInicial, horariosIniciales }: Props) {
           Cuantos pedidos confirmados necesita un cliente para ganar un plato gratis.
         </p>
         <Button type="submit" loading={loadingMeta}>Guardar</Button>
+      </form>
+
+      <form onSubmit={guardarDescuento} className="h-fit space-y-4 rounded-kawaii bg-white p-6 shadow-kawaii">
+        <h2 className="font-display text-xl font-bold text-crunchy-dark">Descuento en toda la carta</h2>
+        <label className="flex items-center gap-3">
+          <input
+            type="checkbox"
+            checked={descuento.activo}
+            onChange={(e) => setDescuento((d) => ({ ...d, activo: e.target.checked }))}
+            className="h-5 w-5 accent-crunchy-accent"
+          />
+          <span className="font-semibold text-crunchy-dark">Descuento activo</span>
+        </label>
+        <Input
+          label="Porcentaje de descuento (%)"
+          type="number"
+          min={1}
+          max={99}
+          value={descuento.porcentaje}
+          onChange={(e) => setDescuento((d) => ({ ...d, porcentaje: Number(e.target.value) }))}
+          required
+        />
+        <Input
+          label="Texto del banner"
+          value={descuento.motivo}
+          onChange={(e) => setDescuento((d) => ({ ...d, motivo: e.target.value }))}
+          placeholder="Promo inauguración"
+          maxLength={80}
+        />
+        <p className="text-sm text-crunchy-muted">
+          Al activarlo aparece un banner en el sitio y el descuento se aplica automaticamente al subtotal de cada pedido.
+        </p>
+        <Button type="submit" loading={loadingDescuento}>Guardar descuento</Button>
       </form>
 
       <form onSubmit={guardarHorarios} className="space-y-4 rounded-kawaii bg-white p-6 shadow-kawaii">

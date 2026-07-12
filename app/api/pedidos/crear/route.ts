@@ -4,6 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { dentroDeVentana, estaAbiertoAhora, formatoVentana, parseHorarios, parseVentanasProductos } from "@/lib/horarios";
 import { crearPagoFlow, flowDisponible } from "@/lib/flow";
+import { calcularDescuento, parseDescuento } from "@/lib/descuento";
 import { geocodificarDireccion } from "@/lib/geocodificar";
 import { calcularDelivery } from "@/lib/delivery";
 import { getZona } from "@/lib/zonas";
@@ -225,7 +226,15 @@ export async function POST(req: Request) {
       }
     }
 
-    const total = subtotal + costoDelivery;
+    // Descuento global configurable desde el admin, calculado en el servidor.
+    const { data: descuentoRow } = await admin
+      .from("configuracion")
+      .select("value")
+      .eq("key", "descuento")
+      .maybeSingle();
+    const montoDescuento = calcularDescuento(subtotal, parseDescuento(descuentoRow?.value));
+
+    const total = subtotal + costoDelivery - montoDescuento;
 
     // Pedido fuera de horario: queda como reserva con la hora pedida, visible para el admin.
     const notasFinal = [
@@ -245,7 +254,7 @@ export async function POST(req: Request) {
           : null,
         costo_delivery: costoDelivery,
         subtotal,
-        descuento: 0,
+        descuento: montoDescuento,
         total,
         metodo_pago: body.metodo_pago,
         estado: "pendiente",
