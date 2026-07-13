@@ -9,6 +9,10 @@ export type DescuentoConfig = {
 
 export const DESCUENTO_INACTIVO: DescuentoConfig = { activo: false, porcentaje: 0, motivo: "" };
 
+// Compra minima del subtotal para que el descuento aplique (evita que se use
+// en pedidos de un solo producto barato).
+export const DESCUENTO_MONTO_MINIMO = 6000;
+
 export function parseDescuento(value: unknown): DescuentoConfig {
   if (!value || typeof value !== "object") return DESCUENTO_INACTIVO;
   const v = value as Record<string, unknown>;
@@ -23,5 +27,6 @@ export function parseDescuento(value: unknown): DescuentoConfig {
 
 export function calcularDescuento(subtotal: number, config: DescuentoConfig): number {
   if (!config.activo) return 0;
+  if (subtotal < DESCUENTO_MONTO_MINIMO) return 0;
   return Math.round((subtotal * config.porcentaje) / 100);
 }

@@ -12,7 +12,7 @@ import { estaAbiertoAhora, proximaVentana, type HorariosConfig } from "@/lib/hor
 import { ZONAS_DELIVERY, getZona } from "@/lib/zonas";
 import { ROUTES } from "@/lib/routes";
 import { DATOS_TRANSFERENCIA } from "@/lib/pago";
-import { calcularDescuento, type DescuentoConfig } from "@/lib/descuento";
+import { calcularDescuento, DESCUENTO_MONTO_MINIMO, type DescuentoConfig } from "@/lib/descuento";
 
 type Props = {
   userId: string | null;
@@ -493,6 +493,11 @@ export function CheckoutForm({ userId, nombreInicial, telefonoInicial, horarios,
                 <span className="font-semibold text-crunchy-accent">🎉 Descuento {descuento.porcentaje}%</span>
                 <span className="font-semibold text-crunchy-accent">-{formatCLP(montoDescuento)}</span>
               </div>
+            )}
+            {descuento.activo && montoDescuento === 0 && subtotal > 0 && subtotal < DESCUENTO_MONTO_MINIMO && (
+              <p className="mb-2 text-xs text-crunchy-muted">
+                Agrega {formatCLP(DESCUENTO_MONTO_MINIMO - subtotal)} más para acceder al {descuento.porcentaje}% de descuento (compras desde {formatCLP(DESCUENTO_MONTO_MINIMO)}).
+              </p>
             )}
             <div className="mb-4 flex justify-between text-sm">
               <span className="text-crunchy-muted">Delivery</span>

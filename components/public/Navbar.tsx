@@ -21,7 +21,7 @@ export function Navbar() {
   const [open, setOpen] = useState(false);
 
   return (
-    <header className="sticky top-0 z-50 border-b border-crunchy-pink-soft bg-crunchy-cream/90 backdrop-blur-md">
+    <header className="border-b border-crunchy-pink-soft bg-crunchy-cream/90 backdrop-blur-md">
       <nav className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4">
         <Link href={ROUTES.HOME} className="flex items-center gap-2">
           <Image src="/brand/logo.webp" alt="CrunchyBowl" width={44} height={44} className="rounded-full" priority />
