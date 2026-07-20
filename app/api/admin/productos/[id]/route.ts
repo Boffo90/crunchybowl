@@ -2,8 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-
-const ADMIN_EMAIL = "annelid@gmail.com";
+import { esAdmin } from "@/lib/admin";
 
 const fieldsSchema = z.object({
   nombre: z.string().trim().min(1),
@@ -14,7 +13,7 @@ const fieldsSchema = z.object({
 export async function PATCH(req: Request, { params }: { params: { id: string } }) {
   const supabase = createClient();
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user || user.email !== ADMIN_EMAIL) {
+  if (!esAdmin(user?.email)) {
     return NextResponse.json({ error: "No autorizado" }, { status: 403 });
   }
 

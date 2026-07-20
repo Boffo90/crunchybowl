@@ -1,6 +1,7 @@
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 import type { CookieOptions } from '@supabase/ssr';
+import { esAdmin } from '@/lib/admin';
 
 export async function middleware(request: NextRequest) {
   let response = NextResponse.next({ request });
@@ -30,7 +31,7 @@ export async function middleware(request: NextRequest) {
 
   if (request.nextUrl.pathname.startsWith('/admin')) {
     if (!user) return NextResponse.redirect(new URL('/login', request.url));
-    if (user.email !== 'annelid@gmail.com') {
+    if (!esAdmin(user.email)) {
       return NextResponse.redirect(new URL('/', request.url));
     }
   }

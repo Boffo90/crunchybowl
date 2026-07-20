@@ -331,9 +331,14 @@ async function notificarPedidoPorCorreo(p: {
   items: string[];
 }) {
   const apiKey = process.env.RESEND_API_KEY;
-  const destino = process.env.EMAIL_ADMIN;
+  // EMAIL_ADMIN acepta varios correos separados por coma: el aviso de pedido
+  // nuevo le llega a todas las cuentas que atienden el local.
+  const destinos = (process.env.EMAIL_ADMIN ?? "")
+    .split(",")
+    .map((e) => e.trim())
+    .filter(Boolean);
   // Sin key real configurada: se omite en silencio (el pedido ya quedo guardado).
-  if (!apiKey || apiKey.includes("xxxx") || !destino) return;
+  if (!apiKey || apiKey.includes("xxxx") || destinos.length === 0) return;
 
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://www.crunchybowl.cl";
   const totalCLP = "$" + p.total.toLocaleString("es-CL");
@@ -356,7 +361,7 @@ async function notificarPedidoPorCorreo(p: {
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
     body: JSON.stringify({
       from: process.env.EMAIL_FROM ?? "CrunchyBowl <onboarding@resend.dev>",
-      to: [destino],
+      to: destinos,
       subject: `Nuevo pedido #${p.numero} — ${p.nombre} (${totalCLP})`,
       html,
     }),

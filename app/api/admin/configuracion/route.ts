@@ -2,8 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-
-const ADMIN_EMAIL = "annelid@gmail.com";
+import { esAdmin } from "@/lib/admin";
 
 const parHorario = z.tuple([z.number().int().min(0).max(1440), z.number().int().min(0).max(1440)])
   .refine(([a, c]) => a < c, "apertura debe ser antes del cierre");
@@ -27,7 +26,7 @@ const bodySchema = z.object({
 export async function PATCH(req: Request) {
   const supabase = createClient();
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user || user.email !== ADMIN_EMAIL) {
+  if (!esAdmin(user?.email)) {
     return NextResponse.json({ error: "No autorizado" }, { status: 403 });
   }
 

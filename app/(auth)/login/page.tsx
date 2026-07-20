@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { createClient } from "@/lib/supabase/client";
 import { ROUTES } from "@/lib/routes";
+import { esAdmin } from "@/lib/admin";
 
 export default function LoginPage() {
   const [loading, setLoading] = useState(false);
@@ -29,9 +30,8 @@ export default function LoginPage() {
       if (!response.ok) {
         throw new Error(payload.error || "Credenciales inválidas");
       }
-      const isAdmin = form.email.trim().toLowerCase() === "annelid@gmail.com";
       toast.success("Bienvenida de vuelta");
-      window.location.href = isAdmin ? ROUTES.ADMIN : ROUTES.MI_CUENTA;
+      window.location.href = esAdmin(form.email) ? ROUTES.ADMIN : ROUTES.MI_CUENTA;
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Credenciales inválidas";
       toast.error(msg);

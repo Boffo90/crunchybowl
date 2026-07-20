@@ -4,7 +4,7 @@ import { MapPin, Phone, Wallet, CreditCard, Landmark } from "lucide-react";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { formatCLP } from "@/lib/utils";
 import { METODO_PAGO_LABEL, type MetodoPago } from "@/lib/pago";
-import { EstadoSelector } from "@/components/admin/EstadoSelector";
+import { AccionesPedido } from "@/components/admin/AccionesPedido";
 
 export const dynamic = "force-dynamic";
 
@@ -37,7 +37,14 @@ export default async function AdminPedidoDetailPage({ params }: { params: { id: 
 
       <div className="mb-6 rounded-kawaii bg-white p-6 shadow-kawaii">
         <h2 className="mb-4 font-display text-xl font-bold text-crunchy-dark">Estado del pedido</h2>
-        <EstadoSelector pedidoId={pedido.id} estadoActual={pedido.estado} />
+        <AccionesPedido
+          pedidoId={pedido.id}
+          numero={pedido.numero}
+          nombre={pedido.nombre}
+          telefono={pedido.telefono}
+          tipoEntrega={pedido.tipo_entrega}
+          estadoActual={pedido.estado}
+        />
       </div>
 
       <div className="mb-6 rounded-kawaii bg-white p-6 shadow-kawaii">

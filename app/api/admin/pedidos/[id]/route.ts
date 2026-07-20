@@ -2,17 +2,17 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-
-const ADMIN_EMAIL = "annelid@gmail.com";
+import { esAdmin } from "@/lib/admin";
 
 const bodySchema = z.object({
   estado: z.enum(["pendiente", "pagado", "preparando", "listo", "en_camino", "entregado", "cancelado"]),
+  motivo: z.string().trim().max(200).nullable().optional(),
 });
 
 export async function PATCH(req: Request, { params }: { params: { id: string } }) {
   const supabase = createClient();
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user || user.email !== ADMIN_EMAIL) {
+  if (!esAdmin(user?.email)) {
     return NextResponse.json({ error: "No autorizado" }, { status: 403 });
   }
 
@@ -22,9 +22,27 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   }
 
   const admin = createAdminClient();
+  const { estado, motivo } = parsed.data;
+
+  const cambios: { estado: string; notas_generales?: string } = { estado };
+
+  // Al rechazar se deja el motivo registrado en el pedido: queda el historial de
+  // por que se cancelo, aunque el aviso al cliente se mande aparte por WhatsApp.
+  if (estado === "cancelado" && motivo) {
+    const { data: actual } = await admin
+      .from("pedidos")
+      .select("notas_generales")
+      .eq("id", params.id)
+      .single();
+
+    cambios.notas_generales = [actual?.notas_generales, `❌ Rechazado: ${motivo}`]
+      .filter(Boolean)
+      .join("\n");
+  }
+
   const { error } = await admin
     .from("pedidos")
-    .update({ estado: parsed.data.estado })
+    .update(cambios)
     .eq("id", params.id);
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
