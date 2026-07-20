@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { estadoPagoFlow } from "@/lib/flow";
-import { recomputarSellos } from "@/lib/sellos";
 
 // Webhook de Flow: llega un POST form-encoded con el token del pago.
 // Consultamos el estado real a Flow (nunca confiar solo en el POST).
@@ -15,16 +14,11 @@ export async function POST(req: Request) {
 
     if (estado.status === 2) {
       const admin = createAdminClient();
-      const { data: pedido } = await admin
+      await admin
         .from("pedidos")
         .update({ estado: "pagado" })
         .eq("id", estado.commerceOrder)
-        .eq("estado", "pendiente")
-        .select("user_id")
-        .maybeSingle();
-
-      // Pagar confirma el pedido: suma el sello de fidelidad al cliente.
-      if (pedido) await recomputarSellos(admin, pedido.user_id);
+        .eq("estado", "pendiente");
     }
 
     return NextResponse.json({ ok: true });
