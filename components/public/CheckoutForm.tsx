@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
-import { AlertCircle, Bike, Home, Wallet, CreditCard, Landmark, Sparkles, Clock } from "lucide-react";
+import { AlertCircle, Bike, Home, Wallet, CreditCard, Landmark, Sparkles, Clock, Gift } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { useCart } from "@/lib/store/cart";
@@ -13,6 +13,7 @@ import { ZONAS_DELIVERY, getZona } from "@/lib/zonas";
 import { ROUTES } from "@/lib/routes";
 import { DATOS_TRANSFERENCIA } from "@/lib/pago";
 import { calcularDescuento, DESCUENTO_MONTO_MINIMO, type DescuentoConfig } from "@/lib/descuento";
+import { tarjetaCompleta, type PlatoElegible } from "@/lib/fidelidad";
 
 type Props = {
   userId: string | null;
@@ -21,9 +22,23 @@ type Props = {
   horarios: HorariosConfig;
   flowHabilitado: boolean;
   descuento: DescuentoConfig;
+  sellos: number;
+  metaSellos: number;
+  // Platos que pueden ir gratis en el canje (no promos), con su precio base.
+  platosElegibles: PlatoElegible[];
 };
 
-export function CheckoutForm({ userId, nombreInicial, telefonoInicial, horarios, flowHabilitado, descuento }: Props) {
+export function CheckoutForm({
+  userId,
+  nombreInicial,
+  telefonoInicial,
+  horarios,
+  flowHabilitado,
+  descuento,
+  sellos,
+  metaSellos,
+  platosElegibles,
+}: Props) {
   const [mounted, setMounted] = useState(false);
   const [loading, setLoading] = useState(false);
   const [abierto, setAbierto] = useState(true);
@@ -62,8 +77,40 @@ export function CheckoutForm({ userId, nombreInicial, telefonoInicial, horarios,
     return cotizacion?.costo ?? 0;
   }, [form.tipo_entrega, form.zona_id, modoZona, cotizacion]);
 
-  const montoDescuento = calcularDescuento(subtotal, descuento);
-  const total = subtotal + costoDelivery - montoDescuento;
+  // Canje de la tarjeta: el cliente elige que plato va gratis. Se regala solo
+  // el precio base, nunca los adicionales que le haya agregado.
+  const basePorProducto = useMemo(
+    () => new Map(platosElegibles.map((p) => [p.id, p.precio_base])),
+    [platosElegibles]
+  );
+
+  const lineasElegibles = useMemo(
+    () =>
+      items
+        .map((item, indice) => ({ item, indice }))
+        .filter(({ item }) => basePorProducto.has(item.producto_id)),
+    [items, basePorProducto]
+  );
+
+  const puedeCanjear =
+    Boolean(userId) && tarjetaCompleta(sellos, metaSellos) && lineasElegibles.length > 0;
+
+  const [canjeIndex, setCanjeIndex] = useState<number | null>(null);
+
+  // Si cambia el carrito, la linea elegida puede dejar de existir o de ser
+  // elegible: en ese caso el canje se cae solo en vez de descontar de mas.
+  const canjeValido =
+    puedeCanjear &&
+    canjeIndex !== null &&
+    lineasElegibles.some((l) => l.indice === canjeIndex);
+
+  const descuentoCanje = canjeValido
+    ? basePorProducto.get(items[canjeIndex!].producto_id) ?? 0
+    : 0;
+
+  // El plato gratis no se junta con el descuento global.
+  const montoDescuento = descuentoCanje > 0 ? 0 : calcularDescuento(subtotal, descuento);
+  const total = Math.max(0, subtotal + costoDelivery - montoDescuento - descuentoCanje);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     // Si cambia la direccion, la cotizacion anterior deja de ser valida.
@@ -144,6 +191,7 @@ export function CheckoutForm({ userId, nombreInicial, telefonoInicial, horarios,
           email: form.email.trim() || null,
           notas_generales: form.notas_generales || null,
           hora_entrega: !abierto ? horaEntrega : null,
+          canje_index: canjeValido ? canjeIndex : null,
           items: items.map((i) => ({
             producto_id: i.producto_id,
             nombre_producto: i.nombre,
@@ -209,6 +257,80 @@ export function CheckoutForm({ userId, nombreInicial, telefonoInicial, horarios,
               <Button size="sm" variant="secondary">Entrar</Button>
             </Link>
           </div>
+        </div>
+      )}
+
+      {puedeCanjear && (
+        <div className="mb-6 rounded-kawaii border-2 border-crunchy-accent bg-white p-5 shadow-kawaii">
+          <div className="mb-4 flex items-start gap-3">
+            <Gift className="mt-0.5 h-6 w-6 shrink-0 text-crunchy-accent" />
+            <div>
+              <p className="font-display text-lg font-bold text-crunchy-dark">
+                ¡Completaste tu tarjeta! 🎉 Llevas un plato gratis
+              </p>
+              <p className="text-sm text-crunchy-muted">
+                Elige cuál va gratis. Se descuenta el precio del plato; los toppings o adicionales
+                que le agregues se cobran aparte.
+              </p>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            {lineasElegibles.map(({ item, indice }) => {
+              const base = basePorProducto.get(item.producto_id) ?? 0;
+              const elegido = canjeIndex === indice;
+              return (
+                <label
+                  key={item.id}
+                  className={
+                    "flex cursor-pointer items-center justify-between gap-3 rounded-2xl border-2 p-3 transition-all " +
+                    (elegido
+                      ? "border-crunchy-accent bg-crunchy-pink-soft"
+                      : "border-crunchy-pink-soft bg-white hover:border-crunchy-pink")
+                  }
+                >
+                  <span className="flex items-center gap-2">
+                    <input
+                      type="radio"
+                      name="canje"
+                      checked={elegido}
+                      onChange={() => setCanjeIndex(indice)}
+                      className="sr-only"
+                    />
+                    <span className="font-semibold text-crunchy-dark">{item.nombre}</span>
+                  </span>
+                  <span className={elegido ? "font-bold text-crunchy-accent" : "text-sm text-crunchy-muted"}>
+                    {elegido ? `-${formatCLP(base)}` : formatCLP(base)}
+                  </span>
+                </label>
+              );
+            })}
+          </div>
+
+          {canjeValido && (
+            <button
+              type="button"
+              onClick={() => setCanjeIndex(null)}
+              className="mt-3 text-sm text-crunchy-accent underline"
+            >
+              Prefiero guardar mi tarjeta para otro pedido
+            </button>
+          )}
+
+          {canjeValido && descuento.activo && (
+            <p className="mt-3 text-xs text-crunchy-muted">
+              Al usar tu tarjeta no se aplica el {descuento.porcentaje}% de descuento general.
+            </p>
+          )}
+        </div>
+      )}
+
+      {Boolean(userId) && tarjetaCompleta(sellos, metaSellos) && lineasElegibles.length === 0 && (
+        <div className="mb-6 rounded-kawaii border-2 border-crunchy-pink bg-crunchy-pink-soft p-4">
+          <p className="text-sm text-crunchy-dark">
+            🎁 <span className="font-semibold">Tienes tu tarjeta completa</span>, pero las promos no entran
+            en el canje. Agrega un plato de la carta y te lo descontamos.
+          </p>
         </div>
       )}
 
@@ -494,7 +616,13 @@ export function CheckoutForm({ userId, nombreInicial, telefonoInicial, horarios,
                 <span className="font-semibold text-crunchy-accent">-{formatCLP(montoDescuento)}</span>
               </div>
             )}
-            {descuento.activo && montoDescuento === 0 && subtotal > 0 && subtotal < DESCUENTO_MONTO_MINIMO && (
+            {descuentoCanje > 0 && (
+              <div className="mb-2 flex justify-between text-sm">
+                <span className="font-semibold text-crunchy-accent">🎁 Plato gratis (tarjeta)</span>
+                <span className="font-semibold text-crunchy-accent">-{formatCLP(descuentoCanje)}</span>
+              </div>
+            )}
+            {descuentoCanje === 0 && descuento.activo && montoDescuento === 0 && subtotal > 0 && subtotal < DESCUENTO_MONTO_MINIMO && (
               <p className="mb-2 text-xs text-crunchy-muted">
                 Agrega {formatCLP(DESCUENTO_MONTO_MINIMO - subtotal)} más para acceder al {descuento.porcentaje}% de descuento (compras desde {formatCLP(DESCUENTO_MONTO_MINIMO)}).
               </p>

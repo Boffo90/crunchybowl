@@ -6,6 +6,7 @@ import { dentroDeVentana, estaAbiertoAhora, formatoVentana, parseHorarios, parse
 import { crearPagoFlow, flowDisponible } from "@/lib/flow";
 import { calcularDescuento, parseDescuento } from "@/lib/descuento";
 import { calcularRecargoGrupo, getExtraGrupo, parseExtras } from "@/lib/extras";
+import { CATEGORIA_PROMOS_SLUG, parseMetaSellos, tarjetaCompleta } from "@/lib/fidelidad";
 import { geocodificarDireccion } from "@/lib/geocodificar";
 import { calcularDelivery } from "@/lib/delivery";
 import { getZona } from "@/lib/zonas";
@@ -31,6 +32,8 @@ const bodySchema = z.object({
   email: z.string().trim().email().nullable().optional(),
   notas_generales: z.string().max(300).nullable().optional(),
   hora_entrega: z.string().trim().max(40).nullable().optional(),
+  // Indice del item del carrito que va gratis por canje de la tarjeta.
+  canje_index: z.number().int().min(0).nullable().optional(),
   items: z.array(itemSchema).min(1),
 });
 
@@ -251,21 +254,107 @@ export async function POST(req: Request) {
       }
     }
 
+    // Canje de la tarjeta de fidelidad: un plato gratis, solo el precio base.
+    // Todo se revalida aca contra la base: los sellos que dice tener el
+    // navegador no se usan para nada.
+    let descuentoCanje = 0;
+    let nombrePlatoGratis: string | null = null;
+    let sellosPrevios = 0;
+    let canjeadosPrevios = 0;
+    let metaSellos = 0;
+
+    if (body.canje_index != null) {
+      if (!effectiveUserId) {
+        return NextResponse.json(
+          { error: "Debes iniciar sesion para canjear tu tarjeta" },
+          { status: 401 }
+        );
+      }
+
+      const itemCanje = body.items[body.canje_index];
+      if (!itemCanje) {
+        return NextResponse.json({ error: "El plato del canje no es valido" }, { status: 400 });
+      }
+      const productoCanje = productosPorId.get(itemCanje.producto_id)!;
+
+      const [{ data: promos }, { data: fidelidadRow }, { data: perfil }] = await Promise.all([
+        admin.from("categorias").select("id").eq("slug", CATEGORIA_PROMOS_SLUG).maybeSingle(),
+        admin.from("configuracion").select("value").eq("key", "fidelidad").maybeSingle(),
+        admin.from("profiles").select("sellos, sellos_canjeados").eq("id", effectiveUserId).maybeSingle(),
+      ]);
+
+      if (promos?.id && productoCanje.categoria_id === promos.id) {
+        return NextResponse.json(
+          { error: "Las promos no entran en el canje: elige un plato de la carta" },
+          { status: 400 }
+        );
+      }
+
+      metaSellos = parseMetaSellos(fidelidadRow?.value);
+      sellosPrevios = perfil?.sellos ?? 0;
+      canjeadosPrevios = perfil?.sellos_canjeados ?? 0;
+
+      if (!tarjetaCompleta(sellosPrevios, metaSellos)) {
+        return NextResponse.json(
+          { error: `Aun no completas tu tarjeta (${sellosPrevios}/${metaSellos} sellos)` },
+          { status: 400 }
+        );
+      }
+
+      // Solo el precio base: los adicionales del plato se cobran igual.
+      descuentoCanje = productoCanje.precio_base;
+      nombrePlatoGratis = productoCanje.nombre;
+    }
+
     // Descuento global configurable desde el admin, calculado en el servidor.
+    // No se acumula con el canje: si hay plato gratis, el porcentaje no aplica.
     const { data: descuentoRow } = await admin
       .from("configuracion")
       .select("value")
       .eq("key", "descuento")
       .maybeSingle();
-    const montoDescuento = calcularDescuento(subtotal, parseDescuento(descuentoRow?.value));
+    const montoDescuento = descuentoCanje > 0
+      ? 0
+      : calcularDescuento(subtotal, parseDescuento(descuentoRow?.value));
 
-    const total = subtotal + costoDelivery - montoDescuento;
+    const total = Math.max(0, subtotal + costoDelivery - montoDescuento - descuentoCanje);
 
     // Pedido fuera de horario: queda como reserva con la hora pedida, visible para el admin.
     const notasFinal = [
       !abierto && body.hora_entrega ? `⏰ RESERVA — entregar a las ${body.hora_entrega}` : null,
+      nombrePlatoGratis ? `🎁 CANJE TARJETA — 1x ${nombrePlatoGratis} va GRATIS` : null,
       body.notas_generales || null,
     ].filter(Boolean).join("\n") || null;
+
+    // Consumir la tarjeta antes de crear el pedido. El filtro por sellos hace
+    // de candado: si llegan dos pedidos a la vez, el segundo no descuenta nada
+    // y se rechaza en vez de regalar dos platos.
+    if (descuentoCanje > 0 && effectiveUserId) {
+      const { data: consumido, error: eCanje } = await admin
+        .from("profiles")
+        .update({ sellos: 0, sellos_canjeados: canjeadosPrevios + 1 })
+        .eq("id", effectiveUserId)
+        .gte("sellos", metaSellos)
+        .select("id");
+
+      if (eCanje) return NextResponse.json({ error: eCanje.message }, { status: 500 });
+      if (!consumido || consumido.length === 0) {
+        return NextResponse.json(
+          { error: "Tu tarjeta ya fue canjeada en otro pedido" },
+          { status: 409 }
+        );
+      }
+    }
+
+    // Devuelve los sellos si el pedido no llega a concretarse.
+    const revertirCanje = async () => {
+      if (descuentoCanje > 0 && effectiveUserId) {
+        await admin
+          .from("profiles")
+          .update({ sellos: sellosPrevios, sellos_canjeados: canjeadosPrevios })
+          .eq("id", effectiveUserId);
+      }
+    };
 
     const { data: pedido, error: e1 } = await admin
       .from("pedidos")
@@ -279,21 +368,31 @@ export async function POST(req: Request) {
           : null,
         costo_delivery: costoDelivery,
         subtotal,
-        descuento: montoDescuento,
+        descuento: montoDescuento + descuentoCanje,
         total,
         metodo_pago: body.metodo_pago,
         estado: "pendiente",
         notas_generales: notasFinal,
+        // El pedido con el que se canjea no vuelve a otorgar un sello: se marca
+        // como ya otorgado para que el trigger otorgar_sello lo salte.
+        sello_otorgado: descuentoCanje > 0,
       })
       .select("id, numero")
       .single();
 
-    if (e1 || !pedido) return NextResponse.json({ error: e1?.message ?? "Error al crear pedido" }, { status: 500 });
+    if (e1 || !pedido) {
+      await revertirCanje();
+      return NextResponse.json({ error: e1?.message ?? "Error al crear pedido" }, { status: 500 });
+    }
 
     const { error: e2 } = await admin
       .from("pedido_items")
       .insert(itemsPayload.map((i) => ({ ...i, pedido_id: pedido.id })));
-    if (e2) return NextResponse.json({ error: e2.message }, { status: 500 });
+    if (e2) {
+      await admin.from("pedidos").delete().eq("id", pedido.id);
+      await revertirCanje();
+      return NextResponse.json({ error: e2.message }, { status: 500 });
+    }
 
     // Pago con Flow: crear la orden de pago y redirigir. Si Flow falla,
     // se elimina el pedido para no dejar pedidos sin via de pago.
@@ -311,6 +410,7 @@ export async function POST(req: Request) {
         console.error("Error creando pago Flow:", err);
         await admin.from("pedido_items").delete().eq("pedido_id", pedido.id);
         await admin.from("pedidos").delete().eq("id", pedido.id);
+        await revertirCanje();
         return NextResponse.json(
           { error: "No se pudo iniciar el pago con Flow. Intenta con otro metodo." },
           { status: 502 }

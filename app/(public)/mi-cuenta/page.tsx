@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Award } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { Button } from "@/components/ui/Button";
 import { LogoutButton } from "@/components/public/LogoutButton";
 import { ROUTES } from "@/lib/routes";
 
@@ -11,14 +12,19 @@ export default async function MiCuentaPage() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect(ROUTES.LOGIN);
 
-  const { data: profile } = await supabase
+  // RLS bloquea profiles y pedidos incluso para su propio dueño, asi que se
+  // leen con service role filtrando por el id del usuario ya autenticado
+  // (mismo patron que /pedido/[id]). Sin esto el cliente veia su tarjeta
+  // siempre en 0 y "aun no has hecho pedidos".
+  const admin = createAdminClient();
+
+  const { data: profile } = await admin
     .from("profiles")
     .select("*")
     .eq("id", user.id)
     .maybeSingle();
 
-  // RLS bloquea configuracion para usuarios normales: leerla con service role (solo servidor).
-  const { data: config, error: configError } = await createAdminClient()
+  const { data: config, error: configError } = await admin
     .from("configuracion")
     .select("value")
     .eq("key", "fidelidad")
@@ -28,7 +34,7 @@ export default async function MiCuentaPage() {
   const sellos = profile?.sellos ?? 0;
   const progreso = Math.min(sellos, meta);
 
-  const { data: pedidos } = await supabase
+  const { data: pedidos } = await admin
     .from("pedidos")
     .select("id, numero, total, estado, created_at")
     .eq("user_id", user.id)
@@ -77,6 +83,20 @@ export default async function MiCuentaPage() {
         <p className="mt-4 text-center font-semibold text-crunchy-dark">
           {sellos} / {meta} sellos
         </p>
+
+        {sellos >= meta && (
+          <div className="mt-4 rounded-2xl bg-white p-4 text-center">
+            <p className="font-display text-lg font-bold text-crunchy-accent">
+              🎁 ¡Tarjeta completa!
+            </p>
+            <p className="text-sm text-crunchy-muted">
+              En tu próximo pedido eliges un plato de la carta y va gratis.
+            </p>
+            <Link href={ROUTES.CARTA}>
+              <Button size="sm" className="mt-3">Ir a la carta</Button>
+            </Link>
+          </div>
+        )}
       </div>
 
       <div className="rounded-kawaii bg-white p-6 shadow-kawaii">
