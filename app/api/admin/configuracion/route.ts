@@ -18,8 +18,21 @@ const bodySchema = z.object({
     porcentaje: z.number().int().min(1).max(99),
     motivo: z.string().trim().max(80),
   }).optional(),
+  // slug del producto -> grupo -> { incluidos, precio }
+  extras_grupos: z.record(
+    z.record(
+      z.object({
+        incluidos: z.number().int().min(0).max(50),
+        precio: z.number().int().min(0).max(100000),
+      })
+    )
+  ).optional(),
 }).refine(
-  (b) => b.sellos_meta !== undefined || b.horarios !== undefined || b.descuento !== undefined,
+  (b) =>
+    b.sellos_meta !== undefined ||
+    b.horarios !== undefined ||
+    b.descuento !== undefined ||
+    b.extras_grupos !== undefined,
   "Nada que actualizar"
 );
 
@@ -55,6 +68,13 @@ export async function PATCH(req: Request) {
     const { error } = await admin
       .from("configuracion")
       .upsert({ key: "descuento", value: parsed.data.descuento }, { onConflict: "key" });
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  if (parsed.data.extras_grupos !== undefined) {
+    const { error } = await admin
+      .from("configuracion")
+      .upsert({ key: "extras_grupos", value: parsed.data.extras_grupos }, { onConflict: "key" });
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   }
 

@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { dentroDeVentana, estaAbiertoAhora, formatoVentana, parseHorarios, parseVentanasProductos } from "@/lib/horarios";
 import { crearPagoFlow, flowDisponible } from "@/lib/flow";
 import { calcularDescuento, parseDescuento } from "@/lib/descuento";
+import { calcularRecargoGrupo, getExtraGrupo, parseExtras } from "@/lib/extras";
 import { geocodificarDireccion } from "@/lib/geocodificar";
 import { calcularDelivery } from "@/lib/delivery";
 import { getZona } from "@/lib/zonas";
@@ -126,6 +127,14 @@ export async function POST(req: Request) {
 
     const opciones = (opcionesData ?? []) as Opcion[];
 
+    // Recargo por opciones adicionales sobre las incluidas (ej: 5to topping).
+    const { data: extrasRow } = await admin
+      .from("configuracion")
+      .select("value")
+      .eq("key", "extras_grupos")
+      .maybeSingle();
+    const extrasConfig = parseExtras(extrasRow?.value);
+
     let subtotal = 0;
     const itemsPayload: Array<{
       producto_id: string;
@@ -143,10 +152,17 @@ export async function POST(req: Request) {
 
       // Validar reglas de opciones (grupos requeridos y maximo por grupo) en el servidor.
       const grupos = [...new Set(opcionesProducto.map((o) => o.grupo))];
+      let recargoExtras = 0;
+
       for (const grupo of grupos) {
         const opcionesGrupo = opcionesProducto.filter((o) => o.grupo === grupo);
         const requerido = opcionesGrupo.some((o) => o.requerido);
         const maxSeleccion = Math.max(...opcionesGrupo.map((o) => o.max_seleccion || 1), 1);
+
+        // Grupos con recargo (ej: toppings) admiten hasta todas sus opciones:
+        // las que pasan de lo incluido se cobran aparte.
+        const reglasExtra = getExtraGrupo(extrasConfig, producto.slug, grupo);
+        const topeSeleccion = reglasExtra ? opcionesGrupo.length : maxSeleccion;
 
         const valor = i.opciones_seleccionadas[grupo];
         const seleccionados = Array.isArray(valor) ? valor : valor ? [valor] : [];
@@ -157,9 +173,16 @@ export async function POST(req: Request) {
             { status: 400 }
           );
         }
-        if (seleccionados.length > maxSeleccion) {
+        if (seleccionados.length > topeSeleccion) {
           return NextResponse.json(
-            { error: `Maximo ${maxSeleccion} en ${grupo} para ${producto.nombre}` },
+            { error: `Maximo ${topeSeleccion} en ${grupo} para ${producto.nombre}` },
+            { status: 400 }
+          );
+        }
+        // Sin repetidos: si no, se inflaria el conteo que define el recargo.
+        if (new Set(seleccionados).size !== seleccionados.length) {
+          return NextResponse.json(
+            { error: `Opciones repetidas en ${grupo} para ${producto.nombre}` },
             { status: 400 }
           );
         }
@@ -171,6 +194,8 @@ export async function POST(req: Request) {
             );
           }
         }
+
+        recargoExtras += calcularRecargoGrupo(seleccionados.length, reglasExtra);
       }
 
       let extra = 0;
@@ -182,7 +207,7 @@ export async function POST(req: Request) {
         }
       }
 
-      const precioUnitario = producto.precio_base + extra;
+      const precioUnitario = producto.precio_base + extra + recargoExtras;
       const itemSubtotal = precioUnitario * i.cantidad;
       subtotal += itemSubtotal;
 

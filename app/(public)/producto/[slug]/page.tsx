@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { getVentanasProductos } from "@/lib/horarios-db";
+import { getExtrasGrupos, getVentanasProductos } from "@/lib/horarios-db";
 import { ProductConfigurator } from "@/components/public/ProductConfigurator";
 import type { Producto, Opcion } from "@/types";
 
@@ -16,7 +16,7 @@ export default async function ProductoPage({ params }: { params: { slug: string 
 
   if (!producto) notFound();
 
-  const [{ data: opciones }, ventanas] = await Promise.all([
+  const [{ data: opciones }, ventanas, extras] = await Promise.all([
     supabase
       .from("opciones")
       .select("*")
@@ -24,6 +24,7 @@ export default async function ProductoPage({ params }: { params: { slug: string 
       .eq("activo", true)
       .order("orden"),
     getVentanasProductos(),
+    getExtrasGrupos(),
   ]);
 
   return (
@@ -31,6 +32,7 @@ export default async function ProductoPage({ params }: { params: { slug: string 
       producto={producto as Producto}
       opciones={(opciones as Opcion[] | null) ?? []}
       ventanaHoraria={ventanas[producto.slug] ?? null}
+      extras={extras[producto.slug] ?? {}}
     />
   );
 }

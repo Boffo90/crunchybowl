@@ -11,12 +11,16 @@ import { useCart } from "@/lib/store/cart";
 import { cn, formatCLP, PRODUCTO_LABELS } from "@/lib/utils";
 import { iconoOpcion } from "@/lib/opciones-iconos";
 import { dentroDeVentana, formatoVentana, type VentanaProducto } from "@/lib/horarios";
+import { calcularRecargoGrupo, type ExtraGrupo } from "@/lib/extras";
 import type { Opcion, Producto } from "@/types";
 
 type ProductConfiguratorProps = {
   producto: Producto;
   opciones: Opcion[];
   ventanaHoraria?: VentanaProducto | null;
+  // Grupos que admiten mas opciones que las incluidas, cobrando un extra por
+  // cada adicional (ej: toppings del bibimbap). Vacio = tope duro, como antes.
+  extras?: Record<string, ExtraGrupo>;
 };
 
 type SelectionState = Record<string, string | string[]>;
@@ -29,7 +33,7 @@ function groupOptions(opciones: Opcion[]) {
   }, {});
 }
 
-export function ProductConfigurator({ producto, opciones, ventanaHoraria }: ProductConfiguratorProps) {
+export function ProductConfigurator({ producto, opciones, ventanaHoraria, extras = {} }: ProductConfiguratorProps) {
   const router = useRouter();
   const addItem = useCart((state) => state.addItem);
   const [selected, setSelected] = useState<SelectionState>({});
@@ -50,6 +54,19 @@ export function ProductConfigurator({ producto, opciones, ventanaHoraria }: Prod
     return sum + (value === opcion.nombre ? opcion.precio_extra : 0);
   }, 0);
 
+  // Recargo por elegir mas opciones que las incluidas (ej: del 5to topping).
+  const recargoExtras = useMemo(
+    () =>
+      Object.entries(extras).reduce((sum, [grupo, reglas]) => {
+        const value = selected[grupo];
+        const cantidad = Array.isArray(value) ? value.length : value ? 1 : 0;
+        return sum + calcularRecargoGrupo(cantidad, reglas);
+      }, 0),
+    [extras, selected]
+  );
+
+  const precioFinal = basePrice + extra + recargoExtras;
+
   const isSeleccionado = (grupo: string) => {
     const value = selected[grupo];
     return Array.isArray(value) ? value.length > 0 : Boolean(value);
@@ -67,12 +84,13 @@ export function ProductConfigurator({ producto, opciones, ventanaHoraria }: Prod
 
   const puedeAgregar = gruposFaltantes.length === 0 && enVentana;
 
-  const toggleOption = (grupo: string, nombre: string, maxSeleccion: number) => {
+  // topeSeleccion es el maximo real de opciones marcables: con recargo activo
+  // llega hasta todas las del grupo, sin recargo es el maximo incluido.
+  const toggleOption = (grupo: string, nombre: string, multi: boolean, topeSeleccion: number) => {
     setSelected((prev) => {
       const current = prev[grupo];
-      const isMultiSelect = maxSeleccion > 1;
 
-      if (isMultiSelect) {
+      if (multi) {
         const currentArray = Array.isArray(current) ? current : [];
         const already = currentArray.includes(nombre);
 
@@ -80,7 +98,7 @@ export function ProductConfigurator({ producto, opciones, ventanaHoraria }: Prod
           return { ...prev, [grupo]: currentArray.filter((item) => item !== nombre) };
         }
 
-        if (currentArray.length >= maxSeleccion) {
+        if (currentArray.length >= topeSeleccion) {
           return prev;
         }
 
@@ -106,7 +124,7 @@ export function ProductConfigurator({ producto, opciones, ventanaHoraria }: Prod
     addItem({
       producto_id: producto.id,
       nombre: producto.nombre,
-      precio_unitario: basePrice + extra,
+      precio_unitario: precioFinal,
       cantidad: 1,
       opciones: normalized,
     });
@@ -150,7 +168,14 @@ export function ProductConfigurator({ producto, opciones, ventanaHoraria }: Prod
         </div>
         <h1 className="mb-4 font-display text-4xl font-bold text-crunchy-dark">{producto.nombre}</h1>
         <p className="mb-6 text-lg text-crunchy-muted">{producto.descripcion ?? "Disfruta este delicioso plato."}</p>
-        <div className="mb-8 text-3xl font-bold text-crunchy-accent">{formatCLP(basePrice + extra)}</div>
+        <div className="mb-8">
+          <span className="text-3xl font-bold text-crunchy-accent">{formatCLP(precioFinal)}</span>
+          {recargoExtras > 0 && (
+            <span className="ml-2 text-sm font-semibold text-crunchy-muted">
+              incluye {formatCLP(recargoExtras)} en adicionales
+            </span>
+          )}
+        </div>
 
         <div className="flex flex-wrap gap-3">
           <Button size="lg" onClick={handleAddToCart} disabled={!puedeAgregar}>
@@ -187,6 +212,14 @@ export function ProductConfigurator({ producto, opciones, ventanaHoraria }: Prod
               const requerido = items.some((item) => item.requerido);
               const currentValue = selected[grupo];
 
+              const reglasExtra = extras[grupo] ?? null;
+              const incluidos = reglasExtra ? reglasExtra.incluidos : maxSeleccion;
+              // Con recargo se pueden marcar todas las opciones del grupo.
+              const topeSeleccion = reglasExtra ? items.length : maxSeleccion;
+              const seleccionadas = Array.isArray(currentValue) ? currentValue.length : currentValue ? 1 : 0;
+              const adicionales = Math.max(0, seleccionadas - incluidos);
+              const recargoGrupo = calcularRecargoGrupo(seleccionadas, reglasExtra);
+
               return (
                 <div key={grupo} className="rounded-2xl border border-crunchy-pink-soft/60 p-4">
                   <div className="mb-3 flex items-center justify-between gap-2">
@@ -195,9 +228,29 @@ export function ProductConfigurator({ producto, opciones, ventanaHoraria }: Prod
                       {requerido && <span className="ml-1 text-crunchy-accent">*</span>}
                     </h3>
                     <span className="text-xs font-medium uppercase tracking-wide text-crunchy-muted">
-                      {multi ? `Elige hasta ${maxSeleccion}` : "Elige una"}
+                      {reglasExtra
+                        ? `${incluidos} incluidos · +${formatCLP(reglasExtra.precio)} c/u`
+                        : multi
+                          ? `Elige hasta ${maxSeleccion}`
+                          : "Elige una"}
                     </span>
                   </div>
+
+                  {reglasExtra && (
+                    <p className="mb-3 text-xs">
+                      {adicionales > 0 ? (
+                        <span className="font-semibold text-crunchy-accent">
+                          {seleccionadas} elegidos: {incluidos} incluidos + {adicionales} adicional
+                          {adicionales > 1 ? "es" : ""} = +{formatCLP(recargoGrupo)}
+                        </span>
+                      ) : (
+                        <span className="text-crunchy-muted">
+                          Llevas {seleccionadas} de {incluidos} incluidos. Puedes agregar más por{" "}
+                          {formatCLP(reglasExtra.precio)} c/u.
+                        </span>
+                      )}
+                    </p>
+                  )}
 
                   <div className="grid grid-cols-2 gap-2">
                     {items.map((opcion) => {
@@ -219,7 +272,7 @@ export function ProductConfigurator({ producto, opciones, ventanaHoraria }: Prod
                             type={multi ? "checkbox" : "radio"}
                             name={grupo}
                             checked={checked}
-                            onChange={() => toggleOption(grupo, opcion.nombre, maxSeleccion)}
+                            onChange={() => toggleOption(grupo, opcion.nombre, multi, topeSeleccion)}
                             className="sr-only"
                           />
                           <span className="text-3xl" aria-hidden>{iconoOpcion(opcion.nombre)}</span>

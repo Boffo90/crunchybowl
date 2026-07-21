@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { DIA_LABEL, minutosAHora, type HorariosConfig } from "@/lib/horarios";
+import { formatCLP } from "@/lib/utils";
 
 const ORDEN_DIAS: (keyof HorariosConfig)[] = ["lun", "mar", "mie", "jue", "vie", "sab", "dom"];
 
@@ -18,13 +19,16 @@ type Props = {
   metaInicial: number;
   horariosIniciales: HorariosConfig;
   descuentoInicial: { activo: boolean; porcentaje: number; motivo: string };
+  toppingsInicial: { incluidos: number; precio: number };
 };
 
-export function ConfiguracionForm({ metaInicial, horariosIniciales, descuentoInicial }: Props) {
+export function ConfiguracionForm({ metaInicial, horariosIniciales, descuentoInicial, toppingsInicial }: Props) {
   const router = useRouter();
   const [meta, setMeta] = useState(metaInicial);
   const [descuento, setDescuento] = useState(descuentoInicial);
   const [loadingDescuento, setLoadingDescuento] = useState(false);
+  const [toppings, setToppings] = useState(toppingsInicial);
+  const [loadingToppings, setLoadingToppings] = useState(false);
   const [horarios, setHorarios] = useState<Record<keyof HorariosConfig, { abre: string; cierra: string }>>(
     () =>
       Object.fromEntries(
@@ -73,6 +77,24 @@ export function ConfiguracionForm({ metaInicial, horariosIniciales, descuentoIni
       toast.error(err instanceof Error ? err.message : "Error al guardar");
     } finally {
       setLoadingDescuento(false);
+    }
+  };
+
+  const guardarToppings = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoadingToppings(true);
+    try {
+      await patch({ extras_grupos: { bibimbap: { toppings } } });
+      toast.success(
+        toppings.precio > 0
+          ? `${toppings.incluidos} toppings incluidos, ${formatCLP(toppings.precio)} c/u adicional`
+          : "Toppings adicionales desactivados"
+      );
+      router.refresh();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Error al guardar");
+    } finally {
+      setLoadingToppings(false);
     }
   };
 
@@ -149,6 +171,34 @@ export function ConfiguracionForm({ metaInicial, horariosIniciales, descuentoIni
           Al activarlo aparece un banner en el sitio y el descuento se aplica automaticamente al subtotal de cada pedido.
         </p>
         <Button type="submit" loading={loadingDescuento}>Guardar descuento</Button>
+      </form>
+
+      <form onSubmit={guardarToppings} className="h-fit space-y-4 rounded-kawaii bg-white p-6 shadow-kawaii">
+        <h2 className="font-display text-xl font-bold text-crunchy-dark">Toppings del Bibimbap</h2>
+        <Input
+          label="Toppings incluidos (sin costo)"
+          type="number"
+          min={0}
+          max={50}
+          value={toppings.incluidos}
+          onChange={(e) => setToppings((t) => ({ ...t, incluidos: Number(e.target.value) }))}
+          required
+        />
+        <Input
+          label="Precio por topping adicional (CLP)"
+          type="number"
+          min={0}
+          max={100000}
+          step={100}
+          value={toppings.precio}
+          onChange={(e) => setToppings((t) => ({ ...t, precio: Number(e.target.value) }))}
+          required
+        />
+        <p className="text-sm text-crunchy-muted">
+          El cliente puede elegir más toppings de los incluidos y se le cobra este monto por cada uno.
+          Con precio en 0 se vuelve al tope fijo de {toppings.incluidos} sin poder agregar más.
+        </p>
+        <Button type="submit" loading={loadingToppings}>Guardar toppings</Button>
       </form>
 
       <form onSubmit={guardarHorarios} className="space-y-4 rounded-kawaii bg-white p-6 shadow-kawaii">

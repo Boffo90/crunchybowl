@@ -7,6 +7,7 @@ import {
   type VentanaProducto,
 } from "@/lib/horarios";
 import { DESCUENTO_INACTIVO, parseDescuento, type DescuentoConfig } from "@/lib/descuento";
+import { EXTRAS_DEFAULT, parseExtras, type ExtrasConfig } from "@/lib/extras";
 
 // SOLO USO EN SERVIDOR. Lee configuracion con el service role porque RLS
 // bloquea la tabla para el rol anon (y su contenido no es sensible: horarios).
@@ -67,6 +68,20 @@ export async function getDescuento(): Promise<DescuentoConfig> {
 // Sin cache: para el checkout, donde el monto mostrado debe ser exacto.
 export async function getDescuentoFresh(): Promise<DescuentoConfig> {
   return fetchDescuento({ cache: "no-store" });
+}
+
+// Recargo por opciones adicionales (ej: toppings extra del bibimbap). Cache 60s.
+export async function getExtrasGrupos(): Promise<ExtrasConfig> {
+  try {
+    const { data } = await serverClient({ next: { revalidate: 60 } } as RequestInit)
+      .from("configuracion")
+      .select("value")
+      .eq("key", "extras_grupos")
+      .maybeSingle();
+    return parseExtras(data?.value);
+  } catch {
+    return EXTRAS_DEFAULT;
+  }
 }
 
 // Ventanas horarias por producto (ej: crunchy-lunch solo 12:00-14:00). Cache 60s.
