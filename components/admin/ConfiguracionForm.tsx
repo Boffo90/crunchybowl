@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { DIA_LABEL, minutosAHora, type HorariosConfig } from "@/lib/horarios";
+import { TOPPING_CON_PRECIO_PROPIO } from "@/lib/extras";
 import { formatCLP } from "@/lib/utils";
 
 const ORDEN_DIAS: (keyof HorariosConfig)[] = ["lun", "mar", "mie", "jue", "vie", "sab", "dom"];
@@ -19,7 +20,7 @@ type Props = {
   metaInicial: number;
   horariosIniciales: HorariosConfig;
   descuentoInicial: { activo: boolean; porcentaje: number; motivo: string };
-  toppingsInicial: { incluidos: number; precio: number };
+  toppingsInicial: { incluidos: number; precio: number; precioHuevo: number };
 };
 
 export function ConfiguracionForm({ metaInicial, horariosIniciales, descuentoInicial, toppingsInicial }: Props) {
@@ -84,7 +85,18 @@ export function ConfiguracionForm({ metaInicial, horariosIniciales, descuentoIni
     e.preventDefault();
     setLoadingToppings(true);
     try {
-      await patch({ extras_grupos: { bibimbap: { toppings } } });
+      const reglas = {
+        incluidos: toppings.incluidos,
+        precio: toppings.precio,
+        precios: { [TOPPING_CON_PRECIO_PROPIO]: toppings.precioHuevo },
+      };
+      // El Crunchy Date son 2 bibimbap: mismos precios, el doble de incluidos.
+      await patch({
+        extras_grupos: {
+          bibimbap: { toppings: reglas },
+          "crunchy-date": { toppings: { ...reglas, incluidos: toppings.incluidos * 2 } },
+        },
+      });
       toast.success(
         toppings.precio > 0
           ? `${toppings.incluidos} toppings incluidos, ${formatCLP(toppings.precio)} c/u adicional`
@@ -194,9 +206,22 @@ export function ConfiguracionForm({ metaInicial, horariosIniciales, descuentoIni
           onChange={(e) => setToppings((t) => ({ ...t, precio: Number(e.target.value) }))}
           required
         />
+        <Input
+          label={`Precio del ${TOPPING_CON_PRECIO_PROPIO} adicional (CLP)`}
+          type="number"
+          min={0}
+          max={100000}
+          step={100}
+          value={toppings.precioHuevo}
+          onChange={(e) => setToppings((t) => ({ ...t, precioHuevo: Number(e.target.value) }))}
+          required
+        />
         <p className="text-sm text-crunchy-muted">
-          El cliente puede elegir más toppings de los incluidos y se le cobra este monto por cada uno.
+          El cliente puede elegir más toppings de los incluidos —incluso repetir el mismo— y se le
+          cobra este monto por cada uno. El {TOPPING_CON_PRECIO_PROPIO.toLowerCase()} tiene su propio
+          precio. Si mezcla toppings de distinto valor, los incluidos son los más baratos.
           Con precio en 0 se vuelve al tope fijo de {toppings.incluidos} sin poder agregar más.
+          Se aplica al Bibimbap y al Crunchy Date (que lleva el doble de incluidos).
         </p>
         <Button type="submit" loading={loadingToppings}>Guardar toppings</Button>
       </form>

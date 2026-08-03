@@ -66,8 +66,33 @@ export async function estadoPagoFlow(token: string): Promise<FlowEstado> {
   };
   params.s = firmar(params);
 
-  const res = await fetch(`${FLOW_API_URL}/payment/getStatus?` + new URLSearchParams(params));
+  const res = await fetch(`${FLOW_API_URL}/payment/getStatus?` + new URLSearchParams(params), {
+    cache: "no-store",
+  });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.message ?? `Flow getStatus respondio ${res.status}`);
+  return data as FlowEstado;
+}
+
+/**
+ * Estado del pago buscando por el numero de orden nuestro (el id del pedido).
+ * Sirve para los pedidos creados antes de que se guardara el flow_token.
+ * Flow responde 404 cuando nunca se creo un pago para esa orden.
+ */
+export async function estadoPagoFlowPorPedido(pedidoId: string): Promise<FlowEstado | null> {
+  const params: Record<string, string> = {
+    apiKey: process.env.FLOW_API_KEY!,
+    commerceId: pedidoId,
+  };
+  params.s = firmar(params);
+
+  const res = await fetch(
+    `${FLOW_API_URL}/payment/getStatusByCommerceId?` + new URLSearchParams(params),
+    { cache: "no-store" }
+  );
+  if (res.status === 404) return null;
+
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.message ?? `Flow getStatusByCommerceId respondio ${res.status}`);
   return data as FlowEstado;
 }

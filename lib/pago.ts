@@ -13,3 +13,13 @@ export const METODO_PAGO_LABEL: Record<MetodoPago, string> = {
   transferencia: "Transferencia bancaria",
   flow: "Flow.cl",
 };
+
+/**
+ * Pedido con Flow que todavia no confirma el pago: se crea en "pendiente" y
+ * recien pasa a "pagado" cuando Flow avisa (o cuando el local lo verifica a
+ * mano). Mientras este asi NO debe prepararse ni contar como pedido por
+ * atender: el cliente pudo cerrar la ventana de Flow sin pagar nunca.
+ */
+export function esperandoPagoFlow(pedido: { metodo_pago: string; estado: string }): boolean {
+  return pedido.metodo_pago === "flow" && pedido.estado === "pendiente";
+}

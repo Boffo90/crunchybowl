@@ -5,7 +5,8 @@ import { createClient } from "@/lib/supabase/server";
 import { dentroDeVentana, estaAbiertoAhora, formatoVentana, parseHorarios, parseVentanasProductos } from "@/lib/horarios";
 import { crearPagoFlow, flowDisponible } from "@/lib/flow";
 import { calcularDescuento, parseDescuento } from "@/lib/descuento";
-import { calcularRecargoGrupo, getExtraGrupo, parseExtras } from "@/lib/extras";
+import { calcularRecargoGrupo, getExtraGrupo, parseExtras, topeSeleccionGrupo } from "@/lib/extras";
+import { listaSeleccion } from "@/lib/opciones";
 import { CATEGORIA_PROMOS_SLUG, parseMetaSellos, tarjetaCompleta } from "@/lib/fidelidad";
 import { geocodificarDireccion } from "@/lib/geocodificar";
 import { calcularDelivery } from "@/lib/delivery";
@@ -162,13 +163,12 @@ export async function POST(req: Request) {
         const requerido = opcionesGrupo.some((o) => o.requerido);
         const maxSeleccion = Math.max(...opcionesGrupo.map((o) => o.max_seleccion || 1), 1);
 
-        // Grupos con recargo (ej: toppings) admiten hasta todas sus opciones:
-        // las que pasan de lo incluido se cobran aparte.
+        // Grupos con recargo (ej: toppings) admiten mas unidades que las
+        // incluidas: las que pasan se cobran aparte.
         const reglasExtra = getExtraGrupo(extrasConfig, producto.slug, grupo);
-        const topeSeleccion = reglasExtra ? opcionesGrupo.length : maxSeleccion;
+        const topeSeleccion = topeSeleccionGrupo(reglasExtra, opcionesGrupo.length, maxSeleccion);
 
-        const valor = i.opciones_seleccionadas[grupo];
-        const seleccionados = Array.isArray(valor) ? valor : valor ? [valor] : [];
+        const seleccionados = listaSeleccion(i.opciones_seleccionadas[grupo]);
 
         if (requerido && seleccionados.length < 1) {
           return NextResponse.json(
@@ -182,10 +182,12 @@ export async function POST(req: Request) {
             { status: 400 }
           );
         }
-        // Sin repetidos: si no, se inflaria el conteo que define el recargo.
-        if (new Set(seleccionados).size !== seleccionados.length) {
+        // Los repetidos se aceptan en los grupos de seleccion multiple (2
+        // huevos, las 2 salsas iguales) y cada uno ocupa un lugar del cupo. En
+        // los grupos de una sola opcion no tienen sentido.
+        if (maxSeleccion <= 1 && seleccionados.length > 1) {
           return NextResponse.json(
-            { error: `Opciones repetidas en ${grupo} para ${producto.nombre}` },
+            { error: `Solo puedes elegir una opcion en ${grupo} para ${producto.nombre}` },
             { status: 400 }
           );
         }
@@ -198,13 +200,14 @@ export async function POST(req: Request) {
           }
         }
 
-        recargoExtras += calcularRecargoGrupo(seleccionados.length, reglasExtra);
+        recargoExtras += calcularRecargoGrupo(seleccionados, reglasExtra);
       }
 
       let extra = 0;
       for (const [grupo, valor] of Object.entries(i.opciones_seleccionadas)) {
-        const nombresSeleccionados = Array.isArray(valor) ? valor : [valor];
-        for (const nombre of nombresSeleccionados) {
+        // Se recorre la lista completa: una opcion elegida dos veces con
+        // precio_extra propio (ej: tamaño) se cobra dos veces.
+        for (const nombre of listaSeleccion(valor)) {
           const opcion = opcionesProducto.find((o) => o.grupo === grupo && o.nombre === nombre);
           if (opcion) extra += opcion.precio_extra;
         }
@@ -406,6 +409,10 @@ export async function POST(req: Request) {
           email: emailPagador,
         });
         flowUrl = pago.redirectUrl;
+
+        // Guardar el token es lo que despues permite preguntarle a Flow si el
+        // pedido se pago de verdad, sin depender de que llegue el webhook.
+        await admin.from("pedidos").update({ flow_token: pago.token }).eq("id", pedido.id);
       } catch (err) {
         console.error("Error creando pago Flow:", err);
         await admin.from("pedido_items").delete().eq("pedido_id", pedido.id);
@@ -467,9 +474,13 @@ async function notificarPedidoPorCorreo(p: {
 
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://www.crunchybowl.cl";
   const totalCLP = "$" + p.total.toLocaleString("es-CL");
+  // Un pedido de Flow recien creado nunca esta pagado todavia: el cliente
+  // recien va camino a pagar. Hay que decirlo fuerte para que no se prepare.
+  const esperandoPago = p.metodoPago === "flow";
   const html = `
     <div style="font-family:sans-serif;max-width:480px">
       <h2 style="color:#FF6B9D">🍜 Nuevo pedido #${p.numero}</h2>
+      ${esperandoPago ? `<p style="background:#FEE2E2;border:2px solid #FCA5A5;padding:10px 12px;border-radius:8px;color:#991B1B"><b>⚠️ PAGO NO CONFIRMADO.</b> El cliente eligió Flow. No prepares nada hasta verificar el pago en el panel.</p>` : ""}
       ${p.notas?.includes("RESERVA") ? `<p style="background:#FFF3CD;padding:8px 12px;border-radius:8px"><b>${p.notas.split("\n")[0]}</b></p>` : ""}
       <p><b>Cliente:</b> ${p.nombre}<br/>
       <b>Teléfono:</b> ${p.telefono}<br/>
@@ -487,7 +498,7 @@ async function notificarPedidoPorCorreo(p: {
     body: JSON.stringify({
       from: process.env.EMAIL_FROM ?? "CrunchyBowl <onboarding@resend.dev>",
       to: destinos,
-      subject: `Nuevo pedido #${p.numero} — ${p.nombre} (${totalCLP})`,
+      subject: `${esperandoPago ? "[ESPERANDO PAGO] " : ""}Nuevo pedido #${p.numero} — ${p.nombre} (${totalCLP})`,
       html,
     }),
   });

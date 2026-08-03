@@ -18,12 +18,14 @@ const bodySchema = z.object({
     porcentaje: z.number().int().min(1).max(99),
     motivo: z.string().trim().max(80),
   }).optional(),
-  // slug del producto -> grupo -> { incluidos, precio }
+  // slug del producto -> grupo -> { incluidos, precio, precios }
+  // "precios" lleva las opciones que valen distinto al resto (ej: el huevo).
   extras_grupos: z.record(
     z.record(
       z.object({
         incluidos: z.number().int().min(0).max(50),
         precio: z.number().int().min(0).max(100000),
+        precios: z.record(z.number().int().min(0).max(100000)).optional(),
       })
     )
   ).optional(),

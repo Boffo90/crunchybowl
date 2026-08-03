@@ -5,6 +5,7 @@ import { ShoppingBag, DollarSign, Users, TrendingUp } from "lucide-react";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { formatCLP } from "@/lib/utils";
 import { ROUTES } from "@/lib/routes";
+import { esperandoPagoFlow } from "@/lib/pago";
 
 export const dynamic = "force-dynamic";
 
@@ -17,12 +18,12 @@ export default async function AdminDashboard() {
 
   const { data: pedidosHoy } = await supabase
     .from("pedidos")
-    .select("id, total, estado")
+    .select("id, total, estado, metodo_pago")
     .gte("created_at", hoyISO);
 
   const { data: pendientes } = await supabase
     .from("pedidos")
-    .select("id, numero, nombre, total, tipo_entrega, estado, created_at")
+    .select("id, numero, nombre, total, tipo_entrega, estado, metodo_pago, created_at")
     .in("estado", ["pendiente", "pagado", "preparando", "listo", "en_camino"])
     .order("created_at", { ascending: false })
     .limit(10);
@@ -32,10 +33,13 @@ export default async function AdminDashboard() {
     .select("*", { count: "exact", head: true })
     .eq("rol", "cliente");
 
-  const ventasHoy = (pedidosHoy ?? [])
-    .filter((p) => p.estado !== "cancelado")
-    .reduce((acc, p) => acc + p.total, 0);
-  const cantidadHoy = (pedidosHoy ?? []).filter((p) => p.estado !== "cancelado").length;
+  // Un pedido de Flow sin pago confirmado no es una venta: no suma ni cuenta.
+  const concretadosHoy = (pedidosHoy ?? []).filter(
+    (p) => p.estado !== "cancelado" && !esperandoPagoFlow(p)
+  );
+  const ventasHoy = concretadosHoy.reduce((acc, p) => acc + p.total, 0);
+  const cantidadHoy = concretadosHoy.length;
+  const sinPagar = (pedidosHoy ?? []).filter(esperandoPagoFlow).length;
 
   const estadoBadge: Record<string, string> = {
     pendiente: "bg-yellow-100 text-yellow-800",
@@ -90,6 +94,11 @@ export default async function AdminDashboard() {
             <p className="text-sm text-crunchy-muted">Pendientes</p>
           </div>
           <p className="text-3xl font-bold text-crunchy-dark">{pendientes?.length ?? 0}</p>
+          {sinPagar > 0 && (
+            <p className="mt-1 text-xs font-bold text-red-600">
+              ⚠️ {sinPagar} esperando pago de Flow
+            </p>
+          )}
         </div>
       </div>
 
@@ -114,9 +123,15 @@ export default async function AdminDashboard() {
                 <div>
                   <div className="flex items-center gap-2">
                     <p className="font-bold text-crunchy-dark">#{p.numero}</p>
-                    <span className={"rounded-full px-2 py-0.5 text-xs font-semibold " + (estadoBadge[p.estado] ?? "bg-gray-100 text-gray-800")}>
-                      {p.estado}
-                    </span>
+                    {esperandoPagoFlow(p) ? (
+                      <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-bold text-red-800">
+                        ⚠️ sin pagar
+                      </span>
+                    ) : (
+                      <span className={"rounded-full px-2 py-0.5 text-xs font-semibold " + (estadoBadge[p.estado] ?? "bg-gray-100 text-gray-800")}>
+                        {p.estado}
+                      </span>
+                    )}
                   </div>
                   <p className="text-sm text-crunchy-muted">{p.nombre}</p>
                   <p className="text-xs text-crunchy-muted">

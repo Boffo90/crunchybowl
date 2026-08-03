@@ -3,8 +3,11 @@ import { MapPin, Phone, Wallet, CreditCard, Landmark } from "lucide-react";
 // Service role: el middleware ya restringe /admin/*; RLS ocultaria pedidos ajenos.
 import { createAdminClient } from "@/lib/supabase/admin";
 import { formatCLP } from "@/lib/utils";
+import { formatearSeleccion } from "@/lib/opciones";
 import { METODO_PAGO_LABEL, type MetodoPago } from "@/lib/pago";
+import { verificarPagoFlow } from "@/lib/flow-verificar";
 import { AccionesPedido } from "@/components/admin/AccionesPedido";
+import { EstadoPagoFlow } from "@/components/admin/EstadoPagoFlow";
 
 export const dynamic = "force-dynamic";
 
@@ -19,6 +22,20 @@ export default async function AdminPedidoDetailPage({ params }: { params: { id: 
 
   if (!pedido) notFound();
 
+  // Al abrir un pedido de Flow se le pregunta a Flow de inmediato: si el
+  // webhook no llego, igual se ve el estado real sin apretar nada. Se consulta
+  // aunque el pedido ya este aceptado, porque alguien pudo moverlo a mano sin
+  // que el pago existiera. Si Flow no responde, queda en rojo (lo seguro).
+  let mensajePago: string | null = null;
+  let pagoConfirmado = pedido.metodo_pago !== "flow";
+
+  if (pedido.metodo_pago === "flow") {
+    const verificacion = await verificarPagoFlow(pedido.id);
+    pagoConfirmado = verificacion.pagado;
+    mensajePago = verificacion.mensaje;
+    pedido.estado = verificacion.estado;
+  }
+
   const { data: items } = await supabase
     .from("pedido_items")
     .select("*")
@@ -27,13 +44,17 @@ export default async function AdminPedidoDetailPage({ params }: { params: { id: 
   const opcionesRender = (opts: Record<string, string | string[]>) =>
     Object.entries(opts).map(([g, v]) => (
       <span key={g} className="mr-2">
-        <span className="capitalize">{g}:</span> {Array.isArray(v) ? v.join(", ") : v}
+        <span className="capitalize">{g}:</span> {formatearSeleccion(v)}
       </span>
     ));
 
   return (
     <div className="mx-auto max-w-3xl p-6 md:p-10">
       <h1 className="mb-8 font-display text-4xl font-bold text-crunchy-dark">Pedido #{pedido.numero}</h1>
+
+      {pedido.metodo_pago === "flow" && (
+        <EstadoPagoFlow pedidoId={pedido.id} pagado={pagoConfirmado} mensajeInicial={mensajePago} />
+      )}
 
       <div className="mb-6 rounded-kawaii bg-white p-6 shadow-kawaii">
         <h2 className="mb-4 font-display text-xl font-bold text-crunchy-dark">Estado del pedido</h2>
@@ -44,6 +65,7 @@ export default async function AdminPedidoDetailPage({ params }: { params: { id: 
           telefono={pedido.telefono}
           tipoEntrega={pedido.tipo_entrega}
           estadoActual={pedido.estado}
+          pagoPendiente={!pagoConfirmado}
         />
       </div>
 

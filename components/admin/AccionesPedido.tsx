@@ -24,9 +24,19 @@ type Props = {
   telefono: string;
   tipoEntrega: "retiro" | "delivery";
   estadoActual: EstadoPedido;
+  /** Pedido de Flow cuyo pago todavia no confirma. */
+  pagoPendiente?: boolean;
 };
 
-export function AccionesPedido({ pedidoId, numero, nombre, telefono, tipoEntrega, estadoActual }: Props) {
+export function AccionesPedido({
+  pedidoId,
+  numero,
+  nombre,
+  telefono,
+  tipoEntrega,
+  estadoActual,
+  pagoPendiente = false,
+}: Props) {
   const router = useRouter();
   const [estado, setEstado] = useState(estadoActual);
   const [loading, setLoading] = useState(false);
@@ -43,6 +53,17 @@ export function AccionesPedido({ pedidoId, numero, nombre, telefono, tipoEntrega
   };
 
   const cambiarEstado = async (nuevo: EstadoPedido, motivoRechazo?: string) => {
+    // Aceptar un pedido de Flow sin pago confirmado es justo lo que hay que
+    // evitar: se cocina y nadie pago nunca. Rechazarlo o cancelarlo si se puede.
+    if (pagoPendiente && nuevo !== "cancelado" && nuevo !== "pendiente") {
+      const seguir = window.confirm(
+        `El pago con Flow del pedido #${numero} NO está confirmado.\n\n` +
+          "Si sigues, el pedido queda aceptado sin que conste el pago. " +
+          "¿Confirmas que el cliente pagó de otra forma?"
+      );
+      if (!seguir) return;
+    }
+
     setLinkBloqueado(null);
 
     // La pestaña se abre AHORA, dentro del gesto del click: si se abriera despues

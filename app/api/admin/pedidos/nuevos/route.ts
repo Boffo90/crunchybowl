@@ -7,6 +7,12 @@ import { esAdmin } from "@/lib/admin";
 // porque el webhook de Flow mueve el pedido a pagado sin que nadie lo acepte.
 const SIN_ATENDER = ["pendiente", "pagado"];
 
+// Un pedido con Flow nace "pendiente" y sigue asi hasta que el pago se
+// confirma: no debe sonar la campanita ni sumar al contador, porque el cliente
+// pudo cerrar la ventana de Flow sin pagar. Incluye todo lo que NO sea la
+// combinacion flow + pendiente.
+const CON_PAGO_RESUELTO = "metodo_pago.neq.flow,estado.neq.pendiente";
+
 export const dynamic = "force-dynamic";
 
 /**
@@ -31,6 +37,7 @@ export async function GET(req: Request) {
     .from("pedidos")
     .select("id, numero, nombre, total, tipo_entrega, created_at")
     .in("estado", SIN_ATENDER)
+    .or(CON_PAGO_RESUELTO)
     .gt("created_at", desde)
     .order("created_at", { ascending: true })
     .limit(20);
@@ -40,7 +47,8 @@ export async function GET(req: Request) {
   const { count } = await admin
     .from("pedidos")
     .select("id", { count: "exact", head: true })
-    .in("estado", SIN_ATENDER);
+    .in("estado", SIN_ATENDER)
+    .or(CON_PAGO_RESUELTO);
 
   return NextResponse.json({
     nuevos: nuevos ?? [],

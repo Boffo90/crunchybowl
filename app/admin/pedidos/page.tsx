@@ -3,6 +3,7 @@ import Link from "next/link";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { formatCLP } from "@/lib/utils";
 import { ROUTES } from "@/lib/routes";
+import { esperandoPagoFlow } from "@/lib/pago";
 
 export const dynamic = "force-dynamic";
 
@@ -50,9 +51,15 @@ export default async function AdminPedidosPage() {
                   <p className="text-sm text-crunchy-muted">{p.telefono}</p>
                 </div>
                 <div>
-                  <span className={"inline-block rounded-full px-3 py-1 text-xs font-semibold " + (estadoBadge[p.estado] ?? "bg-gray-100 text-gray-800")}>
-                    {p.estado}
-                  </span>
+                  {esperandoPagoFlow(p) ? (
+                    <span className="inline-block rounded-full bg-red-100 px-3 py-1 text-xs font-bold text-red-800">
+                      ⚠️ sin pagar
+                    </span>
+                  ) : (
+                    <span className={"inline-block rounded-full px-3 py-1 text-xs font-semibold " + (estadoBadge[p.estado] ?? "bg-gray-100 text-gray-800")}>
+                      {p.estado}
+                    </span>
+                  )}
                 </div>
                 <div>
                   <p className="text-sm capitalize text-crunchy-dark">{p.tipo_entrega}</p>

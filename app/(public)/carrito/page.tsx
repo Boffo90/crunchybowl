@@ -6,6 +6,7 @@ import { Minus, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { useCart } from "@/lib/store/cart";
 import { formatCLP } from "@/lib/utils";
+import { formatearSeleccion } from "@/lib/opciones";
 import { ROUTES } from "@/lib/routes";
 
 export default function CarritoPage() {
@@ -43,8 +44,7 @@ export default function CarritoPage() {
                 <h3 className="font-display text-xl font-bold text-crunchy-dark">{item.nombre}</h3>
                 {Object.entries(item.opciones).map(([grupo, val]) => (
                   <p key={grupo} className="text-sm text-crunchy-muted">
-                    <span className="capitalize">{grupo}:</span>{" "}
-                    {Array.isArray(val) ? val.join(", ") : val}
+                    <span className="capitalize">{grupo}:</span> {formatearSeleccion(val)}
                   </p>
                 ))}
                 {item.notas && (

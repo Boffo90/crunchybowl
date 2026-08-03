@@ -5,13 +5,15 @@ import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { Minus, Plus } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { ROUTES } from "@/lib/routes";
 import { useCart } from "@/lib/store/cart";
 import { cn, formatCLP, PRODUCTO_LABELS } from "@/lib/utils";
 import { iconoOpcion } from "@/lib/opciones-iconos";
+import { cantidadDe, listaSeleccion } from "@/lib/opciones";
 import { dentroDeVentana, formatoVentana, type VentanaProducto } from "@/lib/horarios";
-import { calcularRecargoGrupo, type ExtraGrupo } from "@/lib/extras";
+import { calcularRecargoGrupo, precioOpcion, topeSeleccionGrupo, type ExtraGrupo } from "@/lib/extras";
 import type { Opcion, Producto } from "@/types";
 
 type ProductConfiguratorProps = {
@@ -46,31 +48,36 @@ export function ProductConfigurator({ producto, opciones, ventanaHoraria, extras
 
   const grouped = useMemo(() => groupOptions(opciones), [opciones]);
   const basePrice = producto.precio_base;
-  const extra = opciones.reduce((sum, opcion) => {
-    const value = selected[opcion.grupo];
-    if (Array.isArray(value)) {
-      return sum + (value.includes(opcion.nombre) ? opcion.precio_extra : 0);
-    }
-    return sum + (value === opcion.nombre ? opcion.precio_extra : 0);
-  }, 0);
+
+  // Cada repeticion suma: 2 huevos con precio_extra propio se cobran 2 veces.
+  const extra = useMemo(
+    () =>
+      Object.entries(selected).reduce((sum, [grupo, valor]) => {
+        const opcionesGrupo = grouped[grupo] ?? [];
+        return (
+          sum +
+          listaSeleccion(valor).reduce((acc, nombre) => {
+            const opcion = opcionesGrupo.find((o) => o.nombre === nombre);
+            return acc + (opcion?.precio_extra ?? 0);
+          }, 0)
+        );
+      }, 0),
+    [grouped, selected]
+  );
 
   // Recargo por elegir mas opciones que las incluidas (ej: del 5to topping).
   const recargoExtras = useMemo(
     () =>
-      Object.entries(extras).reduce((sum, [grupo, reglas]) => {
-        const value = selected[grupo];
-        const cantidad = Array.isArray(value) ? value.length : value ? 1 : 0;
-        return sum + calcularRecargoGrupo(cantidad, reglas);
-      }, 0),
+      Object.entries(extras).reduce(
+        (sum, [grupo, reglas]) => sum + calcularRecargoGrupo(listaSeleccion(selected[grupo]), reglas),
+        0
+      ),
     [extras, selected]
   );
 
   const precioFinal = basePrice + extra + recargoExtras;
 
-  const isSeleccionado = (grupo: string) => {
-    const value = selected[grupo];
-    return Array.isArray(value) ? value.length > 0 : Boolean(value);
-  };
+  const isSeleccionado = (grupo: string) => listaSeleccion(selected[grupo]).length > 0;
 
   // Grupos obligatorios (proteina, arroz): al menos una seleccion.
   const gruposFaltantes = useMemo(
@@ -84,29 +91,29 @@ export function ProductConfigurator({ producto, opciones, ventanaHoraria, extras
 
   const puedeAgregar = gruposFaltantes.length === 0 && enVentana;
 
-  // topeSeleccion es el maximo real de opciones marcables: con recargo activo
-  // llega hasta todas las del grupo, sin recargo es el maximo incluido.
-  const toggleOption = (grupo: string, nombre: string, multi: boolean, topeSeleccion: number) => {
+  /** Suma una unidad de la opcion mientras quede cupo en el grupo. */
+  const sumarOpcion = (grupo: string, nombre: string, topeSeleccion: number) => {
     setSelected((prev) => {
-      const current = prev[grupo];
-
-      if (multi) {
-        const currentArray = Array.isArray(current) ? current : [];
-        const already = currentArray.includes(nombre);
-
-        if (already) {
-          return { ...prev, [grupo]: currentArray.filter((item) => item !== nombre) };
-        }
-
-        if (currentArray.length >= topeSeleccion) {
-          return prev;
-        }
-
-        return { ...prev, [grupo]: [...currentArray, nombre] };
-      }
-
-      return { ...prev, [grupo]: current === nombre ? "" : nombre };
+      const actual = listaSeleccion(prev[grupo]);
+      if (actual.length >= topeSeleccion) return prev;
+      return { ...prev, [grupo]: [...actual, nombre] };
     });
+  };
+
+  /** Quita una unidad de la opcion (las demas repeticiones se mantienen). */
+  const restarOpcion = (grupo: string, nombre: string) => {
+    setSelected((prev) => {
+      const actual = listaSeleccion(prev[grupo]);
+      const indice = actual.lastIndexOf(nombre);
+      if (indice === -1) return prev;
+      const copia = [...actual];
+      copia.splice(indice, 1);
+      return { ...prev, [grupo]: copia };
+    });
+  };
+
+  const elegirUnica = (grupo: string, nombre: string) => {
+    setSelected((prev) => ({ ...prev, [grupo]: prev[grupo] === nombre ? "" : nombre }));
   };
 
   const handleAddToCart = () => {
@@ -214,11 +221,14 @@ export function ProductConfigurator({ producto, opciones, ventanaHoraria, extras
 
               const reglasExtra = extras[grupo] ?? null;
               const incluidos = reglasExtra ? reglasExtra.incluidos : maxSeleccion;
-              // Con recargo se pueden marcar todas las opciones del grupo.
-              const topeSeleccion = reglasExtra ? items.length : maxSeleccion;
-              const seleccionadas = Array.isArray(currentValue) ? currentValue.length : currentValue ? 1 : 0;
+              // Misma cuenta que el servidor, para no dejar armar un plato que
+              // despues sea rechazado al confirmar el pedido.
+              const topeSeleccion = topeSeleccionGrupo(reglasExtra, items.length, maxSeleccion);
+              const elegidas = listaSeleccion(currentValue);
+              const seleccionadas = elegidas.length;
               const adicionales = Math.max(0, seleccionadas - incluidos);
-              const recargoGrupo = calcularRecargoGrupo(seleccionadas, reglasExtra);
+              const recargoGrupo = calcularRecargoGrupo(elegidas, reglasExtra);
+              const sinCupo = seleccionadas >= topeSeleccion;
 
               return (
                 <div key={grupo} className="rounded-2xl border border-crunchy-pink-soft/60 p-4">
@@ -245,46 +255,94 @@ export function ProductConfigurator({ producto, opciones, ventanaHoraria, extras
                         </span>
                       ) : (
                         <span className="text-crunchy-muted">
-                          Llevas {seleccionadas} de {incluidos} incluidos. Puedes agregar más por{" "}
-                          {formatCLP(reglasExtra.precio)} c/u.
+                          Llevas {seleccionadas} de {incluidos} incluidos. Puedes repetir el mismo y
+                          agregar más por {formatCLP(reglasExtra.precio)} c/u.
                         </span>
                       )}
                     </p>
                   )}
 
+                  {multi && !reglasExtra && seleccionadas > 0 && (
+                    <p className="mb-3 text-xs text-crunchy-muted">
+                      Llevas {seleccionadas} de {maxSeleccion}. Puedes elegir la misma opción más de una vez.
+                    </p>
+                  )}
+
                   <div className="grid grid-cols-2 gap-2">
                     {items.map((opcion) => {
-                      const checked = Array.isArray(currentValue)
-                        ? currentValue.includes(opcion.nombre)
-                        : currentValue === opcion.nombre;
+                      const cantidad = multi
+                        ? cantidadDe(currentValue, opcion.nombre)
+                        : currentValue === opcion.nombre
+                          ? 1
+                          : 0;
+                      const marcada = cantidad > 0;
+                      // Cuanto costaria esta opcion si entra como adicional.
+                      const precioAdicional = reglasExtra ? precioOpcion(reglasExtra, opcion.nombre) : 0;
 
                       return (
-                        <label
+                        <div
                           key={opcion.id}
                           className={cn(
-                            "flex cursor-pointer flex-col items-center gap-1 rounded-2xl border-2 px-2 py-3 text-center transition-all hover:-translate-y-0.5",
-                            checked
+                            "relative flex flex-col items-center gap-1 rounded-2xl border-2 px-2 py-3 text-center transition-all",
+                            marcada
                               ? "border-crunchy-accent bg-crunchy-pink-soft shadow-kawaii"
                               : "border-crunchy-pink-soft/60 bg-white hover:border-crunchy-pink"
                           )}
                         >
-                          <input
-                            type={multi ? "checkbox" : "radio"}
-                            name={grupo}
-                            checked={checked}
-                            onChange={() => toggleOption(grupo, opcion.nombre, multi, topeSeleccion)}
-                            className="sr-only"
-                          />
-                          <span className="text-3xl" aria-hidden>{iconoOpcion(opcion.nombre)}</span>
-                          <span className={cn("text-xs font-semibold leading-tight", checked ? "text-crunchy-accent" : "text-crunchy-dark")}>
-                            {opcion.nombre}
-                          </span>
-                          {opcion.precio_extra > 0 && (
-                            <span className="text-[11px] font-semibold text-crunchy-accent">
-                              +{formatCLP(opcion.precio_extra)}
+                          <button
+                            type="button"
+                            onClick={() =>
+                              multi
+                                ? sumarOpcion(grupo, opcion.nombre, topeSeleccion)
+                                : elegirUnica(grupo, opcion.nombre)
+                            }
+                            disabled={multi && sinCupo}
+                            aria-label={
+                              multi ? `Agregar ${opcion.nombre}` : `Elegir ${opcion.nombre}`
+                            }
+                            className="flex w-full cursor-pointer flex-col items-center gap-1 transition-transform hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0"
+                          >
+                            <span className="text-3xl" aria-hidden>{iconoOpcion(opcion.nombre)}</span>
+                            <span className={cn("text-xs font-semibold leading-tight", marcada ? "text-crunchy-accent" : "text-crunchy-dark")}>
+                              {opcion.nombre}
                             </span>
+                            {opcion.precio_extra > 0 && (
+                              <span className="text-[11px] font-semibold text-crunchy-accent">
+                                +{formatCLP(opcion.precio_extra)}
+                              </span>
+                            )}
+                            {reglasExtra && precioAdicional !== reglasExtra.precio && (
+                              <span className="text-[11px] font-semibold text-crunchy-accent">
+                                adicional +{formatCLP(precioAdicional)}
+                              </span>
+                            )}
+                          </button>
+
+                          {multi && marcada && (
+                            <div className="mt-1 flex items-center gap-2">
+                              <button
+                                type="button"
+                                onClick={() => restarOpcion(grupo, opcion.nombre)}
+                                aria-label={`Quitar ${opcion.nombre}`}
+                                className="rounded-full bg-white p-1 text-crunchy-accent shadow-kawaii transition-transform hover:scale-110"
+                              >
+                                <Minus className="h-3 w-3" />
+                              </button>
+                              <span className="min-w-[1.25rem] text-sm font-bold text-crunchy-accent">
+                                {cantidad}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => sumarOpcion(grupo, opcion.nombre, topeSeleccion)}
+                                disabled={sinCupo}
+                                aria-label={`Agregar otro ${opcion.nombre}`}
+                                className="rounded-full bg-white p-1 text-crunchy-accent shadow-kawaii transition-transform hover:scale-110 disabled:opacity-40 disabled:hover:scale-100"
+                              >
+                                <Plus className="h-3 w-3" />
+                              </button>
+                            </div>
                           )}
-                        </label>
+                        </div>
                       );
                     })}
                   </div>

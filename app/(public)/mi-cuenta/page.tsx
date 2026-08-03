@@ -69,13 +69,13 @@ export default async function MiCuentaPage() {
             <div
               key={i}
               className={
-                "flex aspect-square items-center justify-center rounded-full border-2 text-lg font-bold transition-all " +
+                "flex aspect-square items-center justify-center rounded-full border-2 font-bold transition-all " +
                 (i < progreso
-                  ? "border-crunchy-accent bg-crunchy-accent text-white shadow-kawaii"
-                  : "border-crunchy-pink-soft bg-white text-crunchy-pink-soft")
+                  ? "scale-105 border-crunchy-accent bg-crunchy-pink-soft text-xl shadow-kawaii"
+                  : "border-crunchy-pink-soft bg-white text-lg text-crunchy-pink-soft")
               }
             >
-              {i < progreso ? "OK" : i + 1}
+              {i < progreso ? <span aria-label="Sello conseguido">🫰</span> : i + 1}
             </div>
           ))}
         </div>

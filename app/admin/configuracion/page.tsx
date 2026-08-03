@@ -2,7 +2,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { ConfiguracionForm } from "@/components/admin/ConfiguracionForm";
 import { parseHorarios } from "@/lib/horarios";
 import { parseDescuento } from "@/lib/descuento";
-import { EXTRAS_DEFAULT } from "@/lib/extras";
+import { EXTRAS_DEFAULT, TOPPING_CON_PRECIO_PROPIO } from "@/lib/extras";
 
 export const dynamic = "force-dynamic";
 
@@ -28,15 +28,17 @@ export default async function AdminConfiguracionPage() {
 
   // Se leen los valores crudos para que el formulario muestre lo guardado
   // aunque este desactivado (precio 0), igual que con el descuento.
-  const toppingsRaw = (extrasRow?.value as { bibimbap?: { toppings?: { incluidos?: number; precio?: number } } } | null)
-    ?.bibimbap?.toppings;
+  const toppingsRaw = (extrasRow?.value as {
+    bibimbap?: { toppings?: { incluidos?: number; precio?: number; precios?: Record<string, number> } };
+  } | null)?.bibimbap?.toppings;
+  const defaults = EXTRAS_DEFAULT.bibimbap.toppings;
   const toppings = {
-    incluidos: typeof toppingsRaw?.incluidos === "number"
-      ? toppingsRaw.incluidos
-      : EXTRAS_DEFAULT.bibimbap.toppings.incluidos,
-    precio: typeof toppingsRaw?.precio === "number"
-      ? toppingsRaw.precio
-      : EXTRAS_DEFAULT.bibimbap.toppings.precio,
+    incluidos: typeof toppingsRaw?.incluidos === "number" ? toppingsRaw.incluidos : defaults.incluidos,
+    precio: typeof toppingsRaw?.precio === "number" ? toppingsRaw.precio : defaults.precio,
+    precioHuevo:
+      typeof toppingsRaw?.precios?.[TOPPING_CON_PRECIO_PROPIO] === "number"
+        ? toppingsRaw.precios[TOPPING_CON_PRECIO_PROPIO]
+        : defaults.precios?.[TOPPING_CON_PRECIO_PROPIO] ?? defaults.precio,
   };
 
   return (

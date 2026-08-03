@@ -5,7 +5,8 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { ROUTES } from "@/lib/routes";
 import { formatCLP } from "@/lib/utils";
-import { DATOS_TRANSFERENCIA, METODO_PAGO_LABEL, type MetodoPago } from "@/lib/pago";
+import { formatearSeleccion } from "@/lib/opciones";
+import { DATOS_TRANSFERENCIA, METODO_PAGO_LABEL, esperandoPagoFlow, type MetodoPago } from "@/lib/pago";
 
 const estadoLabel: Record<string, string> = {
   pendiente: "Pendiente de confirmacion",
@@ -46,7 +47,7 @@ export default async function PedidoPage({ params }: { params: { id: string } })
   const opcionesRender = (opts: Record<string, string | string[]>) => {
     return Object.entries(opts).map(([g, v]) => (
       <span key={g} className="mr-2">
-        <span className="capitalize">{g}:</span> {Array.isArray(v) ? v.join(", ") : v}
+        <span className="capitalize">{g}:</span> {formatearSeleccion(v)}
       </span>
     ));
   };
@@ -70,6 +71,19 @@ export default async function PedidoPage({ params }: { params: { id: string } })
         )}
         <p className="mt-2 text-sm text-crunchy-dark">Te contactaremos por WhatsApp para confirmar.</p>
       </div>
+
+      {esperandoPagoFlow(pedido) && (
+        <div className="mb-6 rounded-kawaii border-2 border-orange-300 bg-orange-50 p-6">
+          <h2 className="mb-2 font-display text-xl font-bold text-orange-800">
+            Estamos esperando la confirmación de tu pago
+          </h2>
+          <p className="text-sm text-orange-700">
+            Si ya pagaste en Flow, puede tardar un par de minutos en confirmarse; esta página se
+            actualiza al recargarla. Si no alcanzaste a pagar, escríbenos por WhatsApp y lo
+            resolvemos. Tu pedido no entra a cocina hasta que el pago esté confirmado.
+          </p>
+        </div>
+      )}
 
       {metodoPago === "transferencia" && pedido.estado === "pendiente" && (
         <div className="mb-6 rounded-kawaii border-2 border-crunchy-pink bg-white p-6 shadow-kawaii">
@@ -96,7 +110,9 @@ export default async function PedidoPage({ params }: { params: { id: string } })
           <div className="flex items-center gap-3">
             <Clock className="h-4 w-4 text-crunchy-accent" />
             <span className="text-crunchy-muted">Estado:</span>
-            <span className="font-semibold text-crunchy-dark">{estadoLabel[pedido.estado] ?? pedido.estado}</span>
+            <span className="font-semibold text-crunchy-dark">
+              {esperandoPagoFlow(pedido) ? "Esperando confirmación del pago" : estadoLabel[pedido.estado] ?? pedido.estado}
+            </span>
           </div>
           <div className="flex items-center gap-3">
             <MapPin className="h-4 w-4 text-crunchy-accent" />
