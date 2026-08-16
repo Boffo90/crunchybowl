@@ -21,14 +21,25 @@ export type ExtrasConfig = Record<string, Record<string, ExtraGrupo>>;
  */
 export const TOPPING_CON_PRECIO_PROPIO = "Huevo";
 
+/**
+ * Grupos de toppings del Crunchy Date. Son DOS, uno por bowl: si fuera un solo
+ * grupo con 8 cupos, a la cocina le llega un saco de toppings sin saber cual va
+ * en cada bibimbap. Los nombres calzan con la columna "grupo" de la tabla
+ * opciones.
+ */
+export const GRUPOS_TOPPINGS_CRUNCHY_DATE = ["bowl 1 toppings", "bowl 2 toppings"] as const;
+
 export const EXTRAS_DEFAULT: ExtrasConfig = {
   bibimbap: {
     toppings: { incluidos: 4, precio: 500, precios: { [TOPPING_CON_PRECIO_PROPIO]: 1000 } },
   },
-  // El Crunchy Date son 2 bibimbap: el doble de toppings incluidos.
-  "crunchy-date": {
-    toppings: { incluidos: 8, precio: 500, precios: { [TOPPING_CON_PRECIO_PROPIO]: 1000 } },
-  },
+  // Cada bowl del Crunchy Date lleva sus propios 4 toppings incluidos.
+  "crunchy-date": Object.fromEntries(
+    GRUPOS_TOPPINGS_CRUNCHY_DATE.map((grupo) => [
+      grupo,
+      { incluidos: 4, precio: 500, precios: { [TOPPING_CON_PRECIO_PROPIO]: 1000 } },
+    ])
+  ),
 };
 
 function parsePrecios(value: unknown): Record<string, number> | undefined {

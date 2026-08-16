@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { DIA_LABEL, minutosAHora, type HorariosConfig } from "@/lib/horarios";
-import { TOPPING_CON_PRECIO_PROPIO } from "@/lib/extras";
+import { GRUPOS_TOPPINGS_CRUNCHY_DATE, TOPPING_CON_PRECIO_PROPIO } from "@/lib/extras";
 import { formatCLP } from "@/lib/utils";
 
 const ORDEN_DIAS: (keyof HorariosConfig)[] = ["lun", "mar", "mie", "jue", "vie", "sab", "dom"];
@@ -90,11 +90,14 @@ export function ConfiguracionForm({ metaInicial, horariosIniciales, descuentoIni
         precio: toppings.precio,
         precios: { [TOPPING_CON_PRECIO_PROPIO]: toppings.precioHuevo },
       };
-      // El Crunchy Date son 2 bibimbap: mismos precios, el doble de incluidos.
+      // El Crunchy Date son 2 bibimbap, cada uno con su propio grupo de
+      // toppings: las mismas reglas del bibimbap suelto, aplicadas por bowl.
       await patch({
         extras_grupos: {
           bibimbap: { toppings: reglas },
-          "crunchy-date": { toppings: { ...reglas, incluidos: toppings.incluidos * 2 } },
+          "crunchy-date": Object.fromEntries(
+            GRUPOS_TOPPINGS_CRUNCHY_DATE.map((grupo) => [grupo, reglas])
+          ),
         },
       });
       toast.success(
@@ -221,7 +224,7 @@ export function ConfiguracionForm({ metaInicial, horariosIniciales, descuentoIni
           cobra este monto por cada uno. El {TOPPING_CON_PRECIO_PROPIO.toLowerCase()} tiene su propio
           precio. Si mezcla toppings de distinto valor, los incluidos son los más baratos.
           Con precio en 0 se vuelve al tope fijo de {toppings.incluidos} sin poder agregar más.
-          Se aplica al Bibimbap y al Crunchy Date (que lleva el doble de incluidos).
+          Se aplica al Bibimbap y a cada uno de los dos bowls del Crunchy Date.
         </p>
         <Button type="submit" loading={loadingToppings}>Guardar toppings</Button>
       </form>
