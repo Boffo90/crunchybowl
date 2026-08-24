@@ -13,6 +13,11 @@ const bodySchema = z.object({
     lun: parHorario, mar: parHorario, mie: parHorario, jue: parHorario,
     vie: parHorario, sab: parHorario, dom: parHorario,
   }).optional(),
+  aviso: z.object({
+    activo: z.boolean(),
+    texto: z.string().trim().max(120),
+    tono: z.enum(["info", "alerta"]),
+  }).optional(),
   descuento: z.object({
     activo: z.boolean(),
     porcentaje: z.number().int().min(1).max(99),
@@ -34,6 +39,7 @@ const bodySchema = z.object({
     b.sellos_meta !== undefined ||
     b.horarios !== undefined ||
     b.descuento !== undefined ||
+    b.aviso !== undefined ||
     b.extras_grupos !== undefined,
   "Nada que actualizar"
 );
@@ -70,6 +76,13 @@ export async function PATCH(req: Request) {
     const { error } = await admin
       .from("configuracion")
       .upsert({ key: "descuento", value: parsed.data.descuento }, { onConflict: "key" });
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  if (parsed.data.aviso !== undefined) {
+    const { error } = await admin
+      .from("configuracion")
+      .upsert({ key: "aviso", value: parsed.data.aviso }, { onConflict: "key" });
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   }
 

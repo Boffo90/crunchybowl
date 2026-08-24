@@ -3,17 +3,30 @@ import { ConfiguracionForm } from "@/components/admin/ConfiguracionForm";
 import { parseHorarios } from "@/lib/horarios";
 import { parseDescuento } from "@/lib/descuento";
 import { EXTRAS_DEFAULT, TOPPING_CON_PRECIO_PROPIO } from "@/lib/extras";
+import { AVISO_INACTIVO, parseAviso } from "@/lib/aviso";
 
 export const dynamic = "force-dynamic";
 
 export default async function AdminConfiguracionPage() {
   const supabase = createAdminClient();
-  const [{ data: fidelidad }, { data: horariosRow }, { data: descuentoRow }, { data: extrasRow }] = await Promise.all([
-    supabase.from("configuracion").select("value").eq("key", "fidelidad").maybeSingle(),
-    supabase.from("configuracion").select("value").eq("key", "horarios").maybeSingle(),
-    supabase.from("configuracion").select("value").eq("key", "descuento").maybeSingle(),
-    supabase.from("configuracion").select("value").eq("key", "extras_grupos").maybeSingle(),
-  ]);
+  const [{ data: fidelidad }, { data: horariosRow }, { data: descuentoRow }, { data: extrasRow }, { data: avisoRow }] =
+    await Promise.all([
+      supabase.from("configuracion").select("value").eq("key", "fidelidad").maybeSingle(),
+      supabase.from("configuracion").select("value").eq("key", "horarios").maybeSingle(),
+      supabase.from("configuracion").select("value").eq("key", "descuento").maybeSingle(),
+      supabase.from("configuracion").select("value").eq("key", "extras_grupos").maybeSingle(),
+      supabase.from("configuracion").select("value").eq("key", "aviso").maybeSingle(),
+    ]);
+
+  // Se muestra el texto guardado aunque este apagado, para poder encenderlo
+  // de nuevo sin tener que reescribirlo.
+  const avisoGuardado = avisoRow?.value as { texto?: string; tono?: string } | null;
+  const aviso = {
+    ...AVISO_INACTIVO,
+    ...parseAviso(avisoRow?.value),
+    texto: typeof avisoGuardado?.texto === "string" ? avisoGuardado.texto : "",
+    tono: avisoGuardado?.tono === "alerta" ? ("alerta" as const) : ("info" as const),
+  };
 
   const meta = (fidelidad?.value as { sellos_meta?: number } | null)?.sellos_meta ?? 10;
   const horarios = parseHorarios(horariosRow?.value);
@@ -49,6 +62,7 @@ export default async function AdminConfiguracionPage() {
         horariosIniciales={horarios}
         descuentoInicial={descuento}
         toppingsInicial={toppings}
+        avisoInicial={aviso}
       />
     </div>
   );

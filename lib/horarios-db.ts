@@ -8,6 +8,7 @@ import {
 } from "@/lib/horarios";
 import { DESCUENTO_INACTIVO, parseDescuento, type DescuentoConfig } from "@/lib/descuento";
 import { EXTRAS_DEFAULT, parseExtras, type ExtrasConfig } from "@/lib/extras";
+import { AVISO_INACTIVO, parseAviso, type AvisoConfig } from "@/lib/aviso";
 
 // SOLO USO EN SERVIDOR. Lee configuracion con el service role porque RLS
 // bloquea la tabla para el rol anon (y su contenido no es sensible: horarios).
@@ -95,5 +96,20 @@ export async function getVentanasProductos(): Promise<Record<string, VentanaProd
     return parseVentanasProductos(data?.value);
   } catch {
     return {};
+  }
+}
+
+// Aviso del local (ej: "hoy sin delivery"). Cache de 60s: el cambio hecho en
+// el panel aparece en el sitio en menos de un minuto.
+export async function getAviso(): Promise<AvisoConfig> {
+  try {
+    const { data } = await serverClient({ next: { revalidate: 60 } } as RequestInit)
+      .from("configuracion")
+      .select("value")
+      .eq("key", "aviso")
+      .maybeSingle();
+    return parseAviso(data?.value);
+  } catch {
+    return AVISO_INACTIVO;
   }
 }
